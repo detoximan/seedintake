@@ -1,9 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
-# SeedIntake Cloud Run deploy script
-# Region: europe-west4 (Amsterdam)
-# Project: detoximan2026
+# ============================================================
+# SeedIntake Cloud Run Deploy
+# ============================================================
+# Регион: europe-west4 (Amsterdam) — тот же что micro-razbor-bot
+# Проект: detoximan2026
+# Сервис: seedintake-telegram-bot (ОТДЕЛЬНЫЙ от micro-razbor-bot!)
+#
+# Секреты (TELEGRAM_BOT_TOKEN, GITHUB_TOKEN, GROQ_API_KEY)
+# передаются через Secret Manager, привязка — вручную через Console
+# или gcloud (см. комментарий внизу).
+# ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/services/telegram_intake_bot/.env"
@@ -13,7 +21,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-# Собираем ENV_VARS из .env, пропуская секреты (они через Secret Manager)
+# Читаем .env, пропускаем секреты (они через Secret Manager)
 ENV_VARS=""
 while IFS='=' read -r key value || [[ -n "$key" ]]; do
   [[ -z "$key" || "$key" == \#* ]] && continue
@@ -32,7 +40,7 @@ while IFS='=' read -r key value || [[ -n "$key" ]]; do
   fi
 done < "$ENV_FILE"
 
-# Добавляем несекретные переменные для Seed Pipeline
+# Seed Pipeline переменные (не секреты)
 EXTRA_VARS="SEED_MARKDOWN_STORAGE=github"
 EXTRA_VARS="$EXTRA_VARS,SEED_GOOGLE_WORKSPACE=live"
 EXTRA_VARS="$EXTRA_VARS,GITHUB_REPOSITORY=detoximan/seedintake"
@@ -46,11 +54,17 @@ else
   ENV_VARS="$EXTRA_VARS"
 fi
 
-echo "=== SeedIntake Cloud Run Deploy ==="
-echo "Region: europe-west4"
-echo "Project: detoximan2026"
-echo "Service: seedintake-telegram-bot"
-echo "Source: $SCRIPT_DIR"
+echo "============================================"
+echo " SeedIntake Cloud Run Deploy"
+echo "============================================"
+echo " Region:  europe-west4 (Amsterdam)"
+echo " Project: detoximan2026"
+echo " Service: seedintake-telegram-bot"
+echo " Source:  $SCRIPT_DIR"
+echo " Repo:    detoximan/seedintake"
+echo "============================================"
+echo ""
+echo "IMPORTANT: micro-razbor-bot НЕ затрагивается!"
 echo ""
 
 cd "$SCRIPT_DIR"
@@ -63,6 +77,12 @@ gcloud run deploy seedintake-telegram-bot \
   --quiet
 
 echo ""
-echo "=== Deploy complete ==="
-echo "Register webhook after deploy:"
-echo "  PYTHONPATH=services/telegram_intake_bot/src:services/seed_pipeline/src \\\n  python3 -m telegram_intake_bot.cli set-webhook --url <CLOUD_RUN_URL>/telegram/webhook"
+echo "============================================"
+echo " Deploy complete!"
+echo "============================================"
+echo ""
+echo "Следующие шаги:"
+echo ""
+echo "1. Привязать секреты (если ещё не привязаны):"
+echo ""
+echo "   gcloud run services update seedintake-telegram-bot \\
