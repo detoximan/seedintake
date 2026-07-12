@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual env
+.venv/
+venv/
+
+# Environment
+.env
+*.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime
+tmp/
+runtime/
+
+# Google credentials
+google-credentials.json
+*-credentials.json
+
+# Logs
+*.log
+
+# Pytest
+.pytest_cache/
+
+# Wrangler
+.wrangler/

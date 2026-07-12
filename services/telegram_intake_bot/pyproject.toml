@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telegram-intake-bot"
+version = "0.2.0"
+description = "Telegram intake bot for SeedIntake"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "google-cloud-speech>=2.27.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
