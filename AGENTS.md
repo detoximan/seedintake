@@ -38,26 +38,31 @@ SeedIntake/
 
 | Параметр | Значение |
 |----------|----------|
-| Сервис Cloud Run | `detoximan-telegram-intake-bot` |
-| Регион | `us-central1` (Iowa) |
+| Сервис Cloud Run | `seedintake-telegram-bot` |
+| Регион | `europe-west4` (Amsterdam, Netherlands) |
 | GCP Проект | `detoximan2026` |
-| URL | `https://detoximan-telegram-intake-bot-579627119014.us-central1.run.app` |
+| URL | `https://seedintake-telegram-bot-v7om675z7q-ez.a.run.app` |
 | Бот Telegram | `@detoximan_intake_bot` |
 | GitHub репо | `detoximan/seedintake` |
 | Google Sheet реестр | есть, ID в секртах |
 
-**Секреты (через Secret Manager):**
-- `TELEGRAM_BOT_TOKEN` — токен бота
-- `GITHUB_TOKEN` — запись сидов в GitHub
-- `GROQ_API_KEY` — транскрибация (Whisper)
+**Секреты (через Secret Manager):
+- TELEGRAM_BOT_TOKEN → telegram-bot-token
+- GITHUB_TOKEN → github-token
+- TELEGRAM_WEBHOOK_SECRET → telegram-webhook-secret
+- GOOGLE_SHEET_ID → google-sheet-id
+- /secrets/google/service-account.json → google-service-account-json
 
-**Не-секретные env:**
-- `SEED_MARKDOWN_STORAGE=github`
-- `SEED_GOOGLE_WORKSPACE=live`
-- `GITHUB_REPOSITORY=detoximan/seedintake`
-- `GITHUB_BRANCH=main`
+Не-секретные env:
+- SEED_MARKDOWN_STORAGE=github
+- LINK_QUEUE_STORAGE=github
+- SEED_GOOGLE_WORKSPACE=live
+- GITHUB_REPOSITORY=detoximan/seedintake
+- GITHUB_BRANCH=main
+- GITHUB_SEED_BASE_URL=https://github.com/detoximan/seedintake/blob/main
+- TRANSCRIPTION_PROVIDER=google
 
-**Как задеплоить:**
+Как задеплоить:**
 ```bash
 cd SeedIntake
 ./deploy.sh
@@ -75,7 +80,7 @@ cd SeedIntake
         ↓
   ┌─ Ссылка? → запись в Inbox/2026/links/ → Link Worker скачивает → транскрибация → сид
   ├─ Текст?  → сразу в Seed Pipeline → сид
-  └─ Голос?  → Groq STT → текст → Seed Pipeline → сид
+  └─ Голос?  → Google Speech-to-Text → текст → Seed Pipeline → сид
         ↓
   Создаются два файла:
   ├── Inbox/2026/full/2026-MM-DD-NNN-f.md  (полная версия)
@@ -179,11 +184,11 @@ PYTHONPATH=src python3 -m telegram_intake_bot.cli diagnose
 
 ## TODO (что предстоит)
 
-- [ ] Обновить `GITHUB_REPOSITORY` в Cloud Run на `detoximan/seedintake`
+- [x] Обновить `GITHUB_REPOSITORY` в Cloud Run на `detoximan/seedintake`
 - [ ] Удалить task-зависимости из telegram_intake_bot (task_intake_writer, flows/task_intake.py)
 - [ ] Нормализовать `processors.py` (36KB, разбить на модули)
 - [ ] Добавить логирование/link-back из slim в full (Obsidian совместимость)
-- [ ] Настроить Secret Manager для нового репо
+- [x] Настроить Secret Manager для нового сервиса
 - [ ] Удалить сиды и сервисы из detoximan (после проверки)
 
 ## Принципы

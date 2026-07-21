@@ -106,9 +106,9 @@ Use GitHub storage only through protected env vars:
 ```bash
 SEED_MARKDOWN_STORAGE=github
 GITHUB_TOKEN=github-token-with-contents-write
-GITHUB_REPOSITORY=pashamal/seedintake
+GITHUB_REPOSITORY=detoximan/seedintake
 GITHUB_BRANCH=main
-GITHUB_SEED_BASE_URL=https://github.com/pashamal/seedintake/blob/main
+GITHUB_SEED_BASE_URL=https://github.com/detoximan/seedintake/blob/main
 ```
 
 For the Cloud Run text `/seed` path, combine it with live Google Sheet registry:

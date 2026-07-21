@@ -64,14 +64,16 @@ PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_*.py'
 
 # Smoke-тест link worker
 cd services/seed_pipeline
-PYTHONPATH=src python3 -m seed_pipeline.cli smoke --dry-run
+PYTHONPATH=src python3 -m seed_pipeline.cli smoke --case ../../test_cases/seed_intake/text_seed_input.md
 ```
 
 ## Деплой
 
-Cloud Build → Docker → Cloud Run (webhook mode)
+Cloud Build → Docker → Cloud Run (webhook mode). Запускать из корня проекта:
 
 ```bash
-cd services/telegram_intake_bot
-PYTHONPATH=src:../seed_pipeline/src python3 -m telegram_intake_bot.cli webhook
+cd SeedIntake
+./deploy.sh
 ```
+
+Canonical deployment: service seedintake-telegram-bot, region europe-west4 (Amsterdam), project detoximan2026. Service URL: https://seedintake-telegram-bot-v7om675z7q-ez.a.run.app; health check: /health; webhook: /telegram/webhook. Final Seed files are stored in detoximan/seedintake under Inbox/YYYY/full/ and Inbox/YYYY/slim/.

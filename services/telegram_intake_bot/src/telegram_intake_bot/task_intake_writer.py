@@ -112,7 +112,7 @@ class GitHubTaskIntakeWriter:
     @classmethod
     def from_env(cls) -> "GitHubTaskIntakeWriter":
         token = os.getenv("GITHUB_TOKEN", "").strip()
-        repository = os.getenv("GITHUB_REPOSITORY", "pashamal/seedintake").strip()
+        repository = os.getenv("GITHUB_REPOSITORY", "detoximan/seedintake").strip()
         branch = os.getenv("GITHUB_BRANCH", "main").strip() or "main"
         missing = [
             name

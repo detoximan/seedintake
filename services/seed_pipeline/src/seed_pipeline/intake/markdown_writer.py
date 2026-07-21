@@ -89,13 +89,13 @@ class SeedMarkdownWriter:
         github_base_url: str | None = None,
     ) -> None:
         self.repo_root = repo_root or find_repo_root()
-        self.seed_root = seed_root or self.repo_root / "1inbox" / "seeds"
+        self.seed_root = seed_root or self.repo_root / "Inbox"
         if not self.seed_root.is_absolute():
             self.seed_root = self.repo_root / self.seed_root
         self.registry = registry or ProcessedMessageRegistry(repo_root=self.repo_root)
         self.github_base_url = (github_base_url or os.getenv("GITHUB_SEED_BASE_URL", "")).strip()
         if not self.github_base_url:
-            self.github_base_url = "https://github.com/pashamal/seedintake/blob/main"
+            self.github_base_url = "https://github.com/detoximan/seedintake/blob/main"
 
     def next_seed_id(self, received_at: str) -> str:
         return _next_seed_id(self.seed_root, received_at)

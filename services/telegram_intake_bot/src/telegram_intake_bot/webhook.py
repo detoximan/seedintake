@@ -52,7 +52,7 @@ def build_webhook_handler(
         server_version = "TelegramIntakeWebhook/0.1"
 
         def do_GET(self) -> None:
-            if self.path == "/healthz":
+            if self.path in {"/health", "/healthz"}:
                 self._write_text(200, "ok\n")
                 return
             self._write_text(404, "not found\n")

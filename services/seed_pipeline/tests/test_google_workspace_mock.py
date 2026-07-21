@@ -22,7 +22,7 @@ class MockGoogleWorkspaceTests(unittest.TestCase):
         result = workspace.create_seed_artifacts(
             seed_id="2026-04-27-001",
             seed_input=self._seed_input(),
-            full_markdown_url="https://github.com/pashamal/seedintake/blob/main/Inbox/2026/full/2026-04-27-001-f.md",
+            full_markdown_url="https://github.com/detoximan/seedintake/blob/main/Inbox/2026/full/2026-04-27-001-f.md",
         )
 
         self.assertEqual(result.status, "ok")
@@ -38,7 +38,7 @@ class MockGoogleWorkspaceTests(unittest.TestCase):
         result = workspace.create_seed_artifacts(
             seed_id="2026-04-27-001",
             seed_input=self._seed_input(),
-            full_markdown_url="https://github.com/pashamal/seedintake/blob/main/Inbox/2026/full/2026-04-27-001-f.md",
+            full_markdown_url="https://github.com/detoximan/seedintake/blob/main/Inbox/2026/full/2026-04-27-001-f.md",
         )
 
         self.assertEqual(result.status, "error")

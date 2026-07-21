@@ -109,7 +109,7 @@ them to Google Cloud Speech-to-Text using `GOOGLE_APPLICATION_CREDENTIALS`.
 - `LINK_QUEUE_STORAGE` - optional override for URL queue writes; defaults to `SEED_MARKDOWN_STORAGE`.
 - `SEED_GOOGLE_WORKSPACE` - optional, `mock` by default; set `live` for Google Sheet registry writes.
 - `GITHUB_TOKEN` - required only for GitHub-backed task, seed, or link queue writes.
-- `GITHUB_REPOSITORY` - optional for GitHub storage, defaults to `pashamal/seedintake`.
+- `GITHUB_REPOSITORY` - optional for GitHub storage, defaults to `detoximan/seedintake`.
 - `GITHUB_BRANCH` - optional for GitHub storage, defaults to `main`.
 - `TRANSCRIPTION_PROVIDER` - optional, defaults to `mock`; set `google` for Google Cloud Speech-to-Text.
 - `GOOGLE_APPLICATION_CREDENTIALS` - required only for `TRANSCRIPTION_PROVIDER=google`.

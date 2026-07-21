@@ -42,3 +42,5 @@ google-credentials.json
 
 # Wrangler
 .wrangler/
+
+.bridge-tmp/

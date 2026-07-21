@@ -63,7 +63,7 @@ class TaskIntakeWriterTests(unittest.TestCase):
             {
                 "TASK_MARKDOWN_STORAGE": "github",
                 "GITHUB_TOKEN": "token",
-                "GITHUB_REPOSITORY": "pashamal/seedintake",
+                "GITHUB_REPOSITORY": "detoximan/seedintake",
                 "GITHUB_BRANCH": "main",
             },
             clear=True,
@@ -90,7 +90,7 @@ class TaskIntakeWriterTests(unittest.TestCase):
                     return None
                 return {"content": {"sha": "abc"}}
 
-        writer = FakeGitHubWriter(token="token", repository="pashamal/seedintake")
+        writer = FakeGitHubWriter(token="token", repository="detoximan/seedintake")
         output = writer.write("Task из Telegram")
 
         self.assertRegex(str(output), r"Inbox/\d{4}-\d{2}-\d{2}-001t\.md$")

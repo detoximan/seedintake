@@ -75,7 +75,7 @@ def run_link_worker(args: argparse.Namespace) -> int:
                 print(f"{result.status}\t{result.path}\t{detail}")
 
         # Авто-коммит и пуш после завершения обработки, если были успешные
-        if any(r.status == "processed" for r in results):
+        if getattr(args, "git_push", False) and any(r.status == "processed" for r in results):
             print("\nAuto-committing processed seeds to GitHub...")
             try:
                 subprocess.run(["git", "add", "Inbox/"], cwd=repo_root, check=True)
@@ -117,7 +117,10 @@ def run_link_worker(args: argparse.Namespace) -> int:
             orchestrator=orchestrator,
         )
         # List items with status pending_cookies in links_fall
-        fallback_items = queue_store.list_items(status="pending_cookies", include_fallback=True)
+        if args.file:
+            fallback_items = [queue_store.read(_resolve_cli_file_arg(args.file))]
+        else:
+            fallback_items = queue_store.list_items(status="pending_cookies", include_fallback=True)
         if not fallback_items:
             print("No fallback items to process.")
             return 0
@@ -140,7 +143,7 @@ def run_link_worker(args: argparse.Namespace) -> int:
                 time.sleep(delay)
         
         # Auto-commit and push after successful processing
-        if any(r.status == "processed" for r in results):
+        if getattr(args, "git_push", False) and any(r.status == "processed" for r in results):
             print("\nAuto-committing processed seeds to GitHub...")
             try:
                 subprocess.run(["git", "add", "Inbox/"], cwd=repo_root, check=True)
@@ -175,6 +178,7 @@ def add_link_worker_parser(subparsers: argparse._SubParsersAction[argparse.Argum
     process_parser.add_argument("--platform", help="Process only items for this platform")
     process_parser.add_argument("--file", help="Process a single queue item path")
     process_parser.add_argument("--json", action="store_true")
+    process_parser.add_argument("--git-push", action="store_true", help="Commit and push generated Inbox files")
     process_parser.add_argument(
         "--fake-processor",
         action="store_true",
@@ -194,6 +198,8 @@ def add_link_worker_parser(subparsers: argparse._SubParsersAction[argparse.Argum
 
     fallback_parser = worker_subparsers.add_parser("process-fallback", help="Process fallback items (with cookies) with delay")
     fallback_parser.add_argument("--live-google", action="store_true", help="Use live Google Sheets")
+    fallback_parser.add_argument("--file", help="Process a single pending_cookies queue item")
+    fallback_parser.add_argument("--git-push", action="store_true", help="Commit and push generated Inbox files")
     fallback_parser.add_argument("--fake-processor", action="store_true", help="Use fake processor (testing)")
 
 

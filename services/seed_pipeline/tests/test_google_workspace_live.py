@@ -93,7 +93,7 @@ class LiveGoogleWorkspaceTests(unittest.TestCase):
         result = workspace.create_seed_artifacts(
             seed_id="2026-04-27-001",
             seed_input=self._seed_input(),
-            full_markdown_url="https://github.com/pashamal/seedintake/blob/main/Inbox/2026/full/2026-04-27-001-f.md",
+            full_markdown_url="https://github.com/detoximan/seedintake/blob/main/Inbox/2026/full/2026-04-27-001-f.md",
         )
 
         self.assertEqual(result.status, "ok")
@@ -107,7 +107,7 @@ class LiveGoogleWorkspaceTests(unittest.TestCase):
         self.assertEqual(values[0]["userEnteredValue"]["stringValue"], "2026-04-27-001")
         self.assertEqual(
             values[0]["userEnteredFormat"]["textFormat"]["link"]["uri"],
-            "https://github.com/pashamal/seedintake/blob/main/Inbox/2026/full/2026-04-27-001-f.md",
+            "https://github.com/detoximan/seedintake/blob/main/Inbox/2026/full/2026-04-27-001-f.md",
         )
         self.assertEqual(values[1]["userEnteredValue"]["stringValue"], "")
         self.assertEqual(values[2]["userEnteredValue"]["stringValue"], "")
@@ -122,7 +122,7 @@ class LiveGoogleWorkspaceTests(unittest.TestCase):
         result = workspace.create_seed_artifacts(
             seed_id="2026-04-27-001",
             seed_input=self._seed_input(),
-            full_markdown_url="https://github.com/pashamal/seedintake/blob/main/Inbox/2026/full/2026-04-27-001-f.md",
+            full_markdown_url="https://github.com/detoximan/seedintake/blob/main/Inbox/2026/full/2026-04-27-001-f.md",
         )
 
         self.assertEqual(result.status, "error")

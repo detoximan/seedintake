@@ -27,7 +27,7 @@ class SeedPipelineCliTests(unittest.TestCase):
                 {
                     "SEED_MARKDOWN_STORAGE": "github",
                     "SEED_GOOGLE_WORKSPACE": "mock",
-                    "GITHUB_REPOSITORY": "pashamal/seedintake",
+                    "GITHUB_REPOSITORY": "detoximan/seedintake",
                 },
                 clear=True,
             ),

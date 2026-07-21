@@ -8,7 +8,7 @@ from seed_pipeline.schemas import SeedInput
 
 
 class FakeGitHubContentsClient:
-    repository = "pashamal/seedintake"
+    repository = "detoximan/seedintake"
     branch = "main"
 
     def __init__(self, *, fail_on_path: str | None = None) -> None:

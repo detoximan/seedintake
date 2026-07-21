@@ -40,7 +40,7 @@ class LinkQueueUpdate:
 class LinkQueueStore:
     def __init__(self, *, repo_root: Path | None = None, seed_root: Path | None = None) -> None:
         self.repo_root = repo_root or find_repo_root()
-        self.seed_root = seed_root or self.repo_root / "1inbox" / "seeds"
+        self.seed_root = seed_root or self.repo_root / "Inbox"
         if not self.seed_root.is_absolute():
             self.seed_root = self.repo_root / self.seed_root
 

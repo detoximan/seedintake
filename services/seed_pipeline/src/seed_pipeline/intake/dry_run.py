@@ -65,7 +65,7 @@ def build_dry_run(
             ),
         )
 
-    seed_id = _next_seed_id(root / "1inbox" / "seeds", seed_input.received_at)
+    seed_id = _next_seed_id(root / "Inbox", seed_input.received_at)
     full_markdown_path = f"Inbox/{seed_id[:4]}/full/{seed_id}-f.md"
     slim_markdown_path = f"Inbox/{seed_id[:4]}/slim/{seed_id}-s.md"
     full_github_url = _github_url(full_markdown_path)
@@ -252,7 +252,7 @@ def _build_markdown_preview(*, seed_id: str, full_github_url: str, comment: str,
 def _github_url(markdown_path: str) -> str:
     base_url = os.getenv("GITHUB_SEED_BASE_URL", "").strip()
     if not base_url:
-        base_url = "https://github.com/pashamal/seedintake/blob/main"
+        base_url = "https://github.com/detoximan/seedintake/blob/main"
     return f"{base_url.rstrip('/')}/{markdown_path}"
 
 

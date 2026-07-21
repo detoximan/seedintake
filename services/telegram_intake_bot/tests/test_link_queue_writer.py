@@ -82,7 +82,7 @@ class LinkQueueWriterTests(unittest.TestCase):
             {
                 "SEED_MARKDOWN_STORAGE": "github",
                 "GITHUB_TOKEN": "token",
-                "GITHUB_REPOSITORY": "pashamal/seedintake",
+                "GITHUB_REPOSITORY": "detoximan/seedintake",
                 "GITHUB_BRANCH": "main",
             },
             clear=True,
@@ -110,7 +110,7 @@ class LinkQueueWriterTests(unittest.TestCase):
                     return [{"type": "file", "name": f"{today.date().isoformat()}-001-link.md"}]
                 return {"content": {"sha": "abc"}}
 
-        writer = FakeGitHubWriter(token="token", repository="pashamal/seedintake")
+        writer = FakeGitHubWriter(token="token", repository="detoximan/seedintake")
         output = writer.write(url="https://t.me/channel/123", platform="telegram_post")
 
         self.assertTrue(output.relative_path.endswith(f"{today.date().isoformat()}-002-link.md"))

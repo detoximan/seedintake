@@ -331,7 +331,7 @@ class SeedIntakeFlow:
             return FlowResponse(
                 text=(
                     "Не удалось поставить ссылку в очередь Seed Link. "
-                    "Проверьте доступ к GitHub/1inbox и повторите отправку."
+                    "Проверьте доступ к GitHub/Inbox и повторите отправку."
                 ),
                 error_record=build_error_record(
                     error_code="SEED_LINK_QUEUE_WRITE_FAILED",
@@ -400,13 +400,13 @@ def classify_link_platform(url: str) -> str:
     
     # Text platforms that go to TextPostProcessor
     if host in {"t.me", "telegram.me"}:
-        return "text_post"
+        return "telegram_post"
     if host in {"threads.net", "threads.com"} or host.endswith(".threads.net") or host.endswith(".threads.com"):
-        return "text_post"
+        return "threads_post"
     if host in {"instagram.com", "m.instagram.com"}:
-        return "text_post"
+        return "instagram_post"
     if host in {"facebook.com", "m.facebook.com", "fb.com", "fb.watch"} or host.endswith(".facebook.com"):
-        return "text_post"
+        return "facebook_post"
     
     # Anything else with an URL is treated as text_post (articles, blogs)
-    return "text_post"
+    return "unknown"
