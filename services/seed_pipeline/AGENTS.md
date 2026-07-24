@@ -46,11 +46,12 @@
      PYTHONPATH=src python3 -m seed_pipeline.cli link-worker process --platform <youtube_shorts|instagram_reels|tiktok|text_post> --live-google
      ```
 
-5. **Обработка проблемных ссылок (с cookies):**
-   - Используй специальную команду, которая берет файлы со статусом `pending_cookies` и скачивает их с помощью cookies браузера:
+5. **Автоматический fallback для проблемных ссылок:**
+   - После любой пакетной или конкретной обработки, если появились ссылки со статусом `pending_cookies`, НЕМЕДЛЕННО запусти process-fallback без запроса пользователю:
      ```bash
      PYTHONPATH=src python3 -m seed_pipeline.cli link-worker process-fallback --live-google
      ```
+   - Если process-fallback тоже не справился — сообщи пользователю итог, но не спрашивай разрешения на каждый шаг.
 
 6. **Проверка новых ссылок:**
    - Сначала обнови локальную копию из GitHub, затем проверь очередь:
