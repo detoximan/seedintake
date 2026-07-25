@@ -57,9 +57,19 @@ def run_link_worker(args: argparse.Namespace) -> int:
             google_workspace=google_workspace,
             repo_root=repo_root,
         )
+        # Always use cookies for Instagram — without them, Instagram blocks yt-dlp
+        rate_limiter = RateLimiter(
+            Path("/tmp/yt_dlp_rate_limit.json"),
+            min_interval=15.0,
+        )
+        processor = (
+            FakeLinkProcessor()
+            if args.fake_processor
+            else PlatformLinkProcessor(use_cookies=True, rate_limiter=rate_limiter)
+        )
         worker = LinkWorker(
             queue_store=queue_store,
-            processor=FakeLinkProcessor() if args.fake_processor else PlatformLinkProcessor(),
+            processor=processor,
             orchestrator=orchestrator,
         )
         if args.file:
@@ -102,14 +112,7 @@ def run_link_worker(args: argparse.Namespace) -> int:
             Path("/tmp/yt_dlp_cookie_rate_limit.json"),
             min_interval=float(os.getenv("COOKIE_REQUEST_INTERVAL", "240"))
         )
-        from seed_pipeline.link_worker.processors import UniversalMediaProcessor
-        cookie_processor = PlatformLinkProcessor(
-            youtube_shorts=UniversalMediaProcessor.from_env(use_cookies=True, rate_limiter=rate_limiter),
-            text_post=UniversalMediaProcessor.from_env(use_cookies=True, rate_limiter=rate_limiter),
-            instagram_reels=UniversalMediaProcessor.from_env(use_cookies=True, rate_limiter=rate_limiter),
-            tiktok=UniversalMediaProcessor.from_env(use_cookies=True, rate_limiter=rate_limiter),
-            instagram_post=UniversalMediaProcessor.from_env(use_cookies=True, rate_limiter=rate_limiter),
-        )
+        cookie_processor = PlatformLinkProcessor(use_cookies=True, rate_limiter=rate_limiter)
         
         worker = LinkWorker(
             queue_store=queue_store,
@@ -125,7 +128,7 @@ def run_link_worker(args: argparse.Namespace) -> int:
             print("No fallback items to process.")
             return 0
         
-        print(f"Found {len(fallback_items)} fallback items. Processing with 5-minute delay between items...")
+        print(f"Found {len(fallback_items)} fallback items. Processing with {int(os.getenv('COOKIE_REQUEST_INTERVAL', '15'))}s delay between items...")
         results = []
         for idx, item in enumerate(fallback_items):
             print(f"\nProcessing {idx+1}/{len(fallback_items)}: {item.relative_path}")
@@ -138,7 +141,7 @@ def run_link_worker(args: argparse.Namespace) -> int:
                 print(f"Failed: {result.reason}")
             # Wait before next item, but not after the last one
             if idx < len(fallback_items) - 1:
-                delay = int(os.getenv("COOKIE_REQUEST_INTERVAL", "65"))
+                delay = int(os.getenv("COOKIE_REQUEST_INTERVAL", "15"))
                 print(f"Waiting {delay} seconds before next item...")
                 time.sleep(delay)
         

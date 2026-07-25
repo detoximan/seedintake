@@ -107,9 +107,14 @@ class LinkWorker:
                 (material_to_write or "")[:1000],
             )
             
+            # Extract seed_id from link filename to keep numbering consistent
+            # e.g. Inbox/2026/links/2026-07-25-005-link.md -> seed_id = 2026-07-25-005
+            link_stem = item.path.stem  # 2026-07-25-005-link
+            desired_seed_id = link_stem.rsplit("-link", 1)[0] if link_stem.endswith("-link") else None
+            
             creation_result = self.orchestrator.create_seed(
                 SeedInput(
-                    telegram_message_id=f"link:{item.relative_path}-instaloader-v9",
+                    telegram_message_id=f"link:{item.relative_path}",
                     telegram_user_id="link-worker-local",
                     received_at=_received_at_from_item(item, timestamp),
                     material=material_to_write,
@@ -117,7 +122,8 @@ class LinkWorker:
                     source_url=item.url,
                     views=processor_result.views,
                     likes=processor_result.likes,
-                )
+                ),
+                seed_id=desired_seed_id,
             )
             logger.debug("Processed material (first 200 chars): %s", processor_result.material[:200])
             logger.debug("Views: %s, Likes: %s", processor_result.views, processor_result.likes)

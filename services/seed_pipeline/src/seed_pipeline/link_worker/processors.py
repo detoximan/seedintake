@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .router import LinkRouter, LinkPlatformType
+
 import json
 import logging
 import mimetypes
@@ -27,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 class RateLimiter:
     """Ограничивает частоту запросов с cookies."""
-    def __init__(self, file_path: Path, min_interval: float = 300.0):
+    def __init__(self, file_path: Path, min_interval: float = 15.0):
         self.file_path = file_path
         self.min_interval = min_interval
 
@@ -45,6 +47,32 @@ class RateLimiter:
             time.sleep(self.min_interval - elapsed)
         # Update timestamp
         self.file_path.write_text(json.dumps({'last_request': time.time()}))
+
+
+def get_cookies_file(url: str) -> Path | None:
+    from .router import LinkRouter
+    platform = LinkRouter.resolve_platform(url)
+    platform_val = platform.value if hasattr(platform, "value") else str(platform)
+    names = []
+    if "instagram" in platform_val:
+        names.append("instagram.txt")
+    elif "tiktok" in platform_val:
+        names.append("tiktok.txt")
+    elif "youtube" in platform_val:
+        names.append("youtube.txt")
+    names.append("cookies.txt")
+
+    roots = [
+        Path("."),
+        Path(__file__).resolve().parents[4],
+        Path(__file__).resolve().parents[5],
+    ]
+    for root in roots:
+        for name in names:
+            p = root / ".cookies" / name
+            if p.exists():
+                return p
+    return None
 
 
 from .queue import LinkQueueItem
@@ -102,44 +130,30 @@ class FailingLinkProcessor:
 
 
 class PlatformLinkProcessor:
-    def __init__(
-        self,
-        *,
-        youtube_shorts: LinkProcessor | None = None,
-        text_post: LinkProcessor | None = None,
-        instagram_reels: LinkProcessor | None = None,
-        tiktok: LinkProcessor | None = None,
-        instagram_post: LinkProcessor | None = None,
-    ) -> None:
-        self.youtube_shorts = youtube_shorts
-        self.text_post = text_post
-        self.instagram_reels = instagram_reels
-        self.tiktok = tiktok
-        self.instagram_post = instagram_post
+    def __init__(self, use_cookies: bool = False, rate_limiter = None, **kwargs) -> None:
+        from .platform_processors.instagram import InstagramProcessor
+        from .platform_processors.tiktok import TikTokProcessor
+        from .platform_processors.youtube import YouTubeProcessor
+        from .platform_processors.web import WebProcessor
+        self.insta = InstagramProcessor(use_cookies=use_cookies, rate_limiter=rate_limiter)
+        self.tiktok = TikTokProcessor(use_cookies=use_cookies, rate_limiter=rate_limiter)
+        self.youtube = YouTubeProcessor(use_cookies=use_cookies, rate_limiter=rate_limiter)
+        self.web = WebProcessor(use_cookies=use_cookies, rate_limiter=rate_limiter)
 
     def process(self, item: LinkQueueItem) -> LinkProcessorResult:
-        if item.platform == "youtube_shorts":
-            if self.youtube_shorts is None:
-                self.youtube_shorts = YouTubeShortsProcessor.from_env()
-            return self.youtube_shorts.process(item)
-        if item.platform == "text_post":
-            if self.text_post is None:
-                self.text_post = TextPostProcessor.from_env()
-            return self.text_post.process(item)
-        if item.platform == "instagram_reels":
-            if self.instagram_reels is None:
-                self.instagram_reels = InstagramReelsProcessor.from_env()
-            return self.instagram_reels.process(item)
-        if item.platform == "tiktok":
-            if self.tiktok is None:
-                self.tiktok = UniversalMediaProcessor.from_env(use_cookies=True)
-            return self.tiktok.process(item)
-        if item.platform == "instagram_post":
-            if self.instagram_post is None:
-                self.instagram_post = UniversalMediaProcessor.from_env()
-            return self.instagram_post.process(item)
-        raise RuntimeError(f"Unsupported link platform for local worker: {item.platform}")
+        resolved_platform = LinkRouter.resolve_platform(item.url)
+        logger.info("LinkRouter resolved %s -> %s", item.url, resolved_platform)
 
+        if resolved_platform == LinkPlatformType.INSTAGRAM_REELS:
+            return self.insta.process_reels(item)
+        elif resolved_platform == LinkPlatformType.INSTAGRAM_CAROUSEL:
+            return self.insta.process_carousel(item)
+        elif resolved_platform in (LinkPlatformType.TIKTOK_VIDEO, LinkPlatformType.TIKTOK_PHOTO):
+            return self.tiktok.process(item)
+        elif resolved_platform == LinkPlatformType.YOUTUBE_SHORTS:
+            return self.youtube.process(item)
+        else:
+            return self.web.process(item)
 
 class TextPostProcessor:
     def __init__(self, *, ytdlp: YtDlpMetadataDownloader, jina: JinaReader) -> None:
@@ -359,7 +373,12 @@ class YtDlpMediaDownloader:
             "--output", "%(id)s.%(ext)s",
         ]
         
-        if self.use_cookies:
+        cookies_file = get_cookies_file(url)
+        if cookies_file:
+            if self.rate_limiter:
+                self.rate_limiter.wait_if_needed()
+            command.extend(["--cookies", str(cookies_file)])
+        elif self.use_cookies:
             if self.rate_limiter:
                 self.rate_limiter.wait_if_needed()
             command.extend(["--cookies-from-browser", self.browser])
@@ -463,26 +482,21 @@ class GalleryDlMediaDownloader:
 
 class InstaloaderMediaDownloader:
     """Скачивает медиафайлы через instaloader Python API (поддерживает карусели Instagram).
-    Загружает куки напрямую из браузера Chrome (через browser_cookie3)."""
-    def __init__(self) -> None:
-        pass
+    Загружает куки из файла .cookies/instagram.txt или браузера."""
+    def __init__(self, use_cookies: bool = False) -> None:
+        self.use_cookies = use_cookies
 
     def download_all(self, url: str, target_dir: Path) -> list[Path]:
         import os
         import uuid
         import shutil
         import subprocess
-
         import re
+
         try:
             import instaloader  # type: ignore
         except ImportError:
             raise RuntimeError("instaloader не установлен: pip install instaloader")
-
-        try:
-            import browser_cookie3  # type: ignore
-        except ImportError:
-            raise RuntimeError("browser_cookie3 не установлен: pip install browser_cookie3")
 
         # Extract shortcode from URL (/p/ for posts/carousels, /reel/ for reels)
         match = re.search(r'/(?:p|reel)/([^/?]+)', url)
@@ -502,20 +516,40 @@ class InstaloaderMediaDownloader:
             compress_json=False,
         )
 
-        logger.info("Instaloader: loading cookies directly from Firefox...")
-        try:
-            cj = browser_cookie3.firefox(domain_name='instagram.com')
-            for cookie in cj:
-                L.context._session.cookies.set_cookie(cookie)
-            
-            if 'sessionid' in L.context._session.cookies.get_dict():
-                L.context.is_logged_in = True
-                L.context.username = "firefox_user"
-                logger.info("Instaloader: successfully injected Firefox cookies!")
-            else:
-                logger.warning("Instaloader: Firefox cookies loaded, but 'sessionid' not found")
-        except Exception as e:
-            logger.warning("Instaloader: failed to load Firefox cookies: %s", e)
+        cookie_file = get_cookies_file(url)
+        if cookie_file:
+            logger.info("Instaloader: loading cookies from %s", cookie_file)
+            try:
+                import http.cookiejar
+                cj = http.cookiejar.MozillaCookieJar()
+                cj.load(str(cookie_file), ignore_discard=True, ignore_expires=True)
+                for cookie in cj:
+                    L.context._session.cookies.set_cookie(cookie)
+
+                if 'sessionid' in L.context._session.cookies.get_dict():
+                    L.context.is_logged_in = True
+                    L.context.username = "file_user"
+                    logger.info("Instaloader: successfully injected cookies from file!")
+                else:
+                    logger.warning("Instaloader: Cookie file loaded, but 'sessionid' not found")
+            except Exception as e:
+                logger.warning("Instaloader: failed to load cookies from file: %s", e)
+        elif self.use_cookies:
+            logger.info("Instaloader: loading cookies directly from Firefox...")
+            try:
+                import browser_cookie3  # type: ignore
+                cj = browser_cookie3.firefox(domain_name='instagram.com')
+                for cookie in cj:
+                    L.context._session.cookies.set_cookie(cookie)
+
+                if 'sessionid' in L.context._session.cookies.get_dict():
+                    L.context.is_logged_in = True
+                    L.context.username = "firefox_user"
+                    logger.info("Instaloader: successfully injected Firefox cookies!")
+                else:
+                    logger.warning("Instaloader: Firefox cookies loaded, but 'sessionid' not found")
+            except Exception as e:
+                logger.warning("Instaloader: failed to load Firefox cookies: %s", e)
 
         try:
             post = instaloader.Post.from_shortcode(L.context, shortcode)
@@ -711,17 +745,22 @@ class UniversalMediaProcessor:
 
 
 class YtDlpAudioDownloader:
-    def __init__(self, *, executable: str = "yt-dlp", audio_format: str = "mp3", audio_quality: str = "64K") -> None:
+    def __init__(self, *, executable: str = "yt-dlp", audio_format: str = "mp3", audio_quality: str = "64K", use_cookies: bool = False, browser: str = "firefox", rate_limiter = None) -> None:
         self.executable = executable
         self.audio_format = audio_format
         self.audio_quality = audio_quality
+        self.use_cookies = use_cookies
+        self.browser = browser
+        self.rate_limiter = rate_limiter
 
     @classmethod
-    def from_env(cls) -> "YtDlpAudioDownloader":
+    def from_env(cls, *, use_cookies: bool = False, rate_limiter = None) -> "YtDlpAudioDownloader":
         return cls(
             executable=os.getenv("YT_DLP_BIN", "yt-dlp").strip() or "yt-dlp",
             audio_format=os.getenv("LINK_WORKER_AUDIO_FORMAT", "mp3").strip() or "mp3",
             audio_quality=os.getenv("LINK_WORKER_AUDIO_QUALITY", "64K").strip() or "64K",
+            use_cookies=use_cookies,
+            rate_limiter=rate_limiter,
         )
 
     def download_audio(self, url: str, target_dir: Path) -> Path:
@@ -741,8 +780,19 @@ class YtDlpAudioDownloader:
             str(target_dir),
             "--output",
             "%(id)s.%(ext)s",
-            url,
         ]
+
+        cookies_file = get_cookies_file(url)
+        if cookies_file:
+            if self.rate_limiter:
+                self.rate_limiter.wait_if_needed()
+            command.extend(["--cookies", str(cookies_file)])
+        elif self.use_cookies:
+            if self.rate_limiter:
+                self.rate_limiter.wait_if_needed()
+            command.extend(["--cookies-from-browser", self.browser])
+
+        command.append(url)
         try:
             completed = subprocess.run(command, capture_output=True, check=False, text=True, timeout=300)
         except subprocess.TimeoutExpired as exc:

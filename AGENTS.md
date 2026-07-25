@@ -1,200 +1,101 @@
 # SeedIntake — AGENTS.md
 
-Главный файл-инструкция проекта. Любой LLM-агент или человек, зашедший в проект, начинает здесь.
+Любой LLM-агент, зашедший в проект, начинает здесь. Технические данные деплоя и секреты — в `AGENTS.old.md`.
 
-## Что это за проект
+## Шаг 1: Подтянуть ссылки
 
-SeedIntake — входная точка для приёма и первичной обработки контент-семян (seeds). Семя — это единица контента: идея, мысль, транскрипция ролика, заметка. Всё проходит через Telegram-бот → обрабатывается → сохраняется в структурированном виде.
-
-## Архитектура (три слоя по Карпати)
-
-1. **Raw Sources** — входящие материалы (ссылки, голос, текст из Telegram)
-2. **Wiki (Seeds)** — обработанные, связанные markdown-файлы в `Inbox/`
-3. **Schema** — этот файл (AGENTS.md) + README.md
-
-## Структура проекта
-
-```
-SeedIntake/
-├── AGENTS.md              ← ТЫ ЗДЕСЬ. Главный файл-инструкция
-├── README.md              ← Техническое описание
-├── 3_karpathy-idea.md     ← Идея LLM Wiki (паттерн организации знаний)
-├── deploy.sh              ← Скрипт деплоя на Cloud Run
-├── Dockerfile             ← Для деплоя через gcloud --source
-├── .env.example           ← Шаблон переменных окружения
-│
-├── Inbox/                 ← Все сиды, по годам
-│   └── 2026/
-│       ├── full/          ← Полные версии (транскрипция + комментарий + метаданные)
-│       ├── slim/          ← Короткие версии (ссылки на full + краткое содержание)
-│       └── links/         ← Очередь ссылок для обработки (new → processed/failed)
-│
-└── services/
-    ├── telegram_intake_bot/   ← Telegram-бот (приём сообщений)
-    └── seed_pipeline/         ← Пайплайн обработки (ссылки → транскрипция → сид)
+```bash
+cd SeedIntake && git pull
 ```
 
-## Деплой
+## Шаг 2: Найти необработанные
 
-| Параметр | Значение |
-|----------|----------|
-| Сервис Cloud Run | `seedintake-telegram-bot` |
-| Регион | `europe-west4` (Amsterdam, Netherlands) |
-| GCP Проект | `detoximan2026` |
-| URL | `https://seedintake-telegram-bot-v7om675z7q-ez.a.run.app` |
-| Бот Telegram | `@detoximan_intake_bot` |
-| GitHub репо | `detoximan/seedintake` |
-| Google Sheet реестр | есть, ID в секртах |
+Файлы в `Inbox/2026/links/`. Искать `status: new`. Обработанные — `status: processed`. Неудачные — `status: failed`.
 
-**Секреты (через Secret Manager):
-- TELEGRAM_BOT_TOKEN → telegram-bot-token
-- GITHUB_TOKEN → github-token
-- TELEGRAM_WEBHOOK_SECRET → telegram-webhook-secret
-- GOOGLE_SHEET_ID → google-sheet-id
-- /secrets/google/service-account.json → google-service-account-json
+## Шаг 3: Определить тип контента и запустить КОНКРЕТНЫЙ обработчик
 
-Не-секретные env:
-- SEED_MARKDOWN_STORAGE=github
-- LINK_QUEUE_STORAGE=github
-- SEED_GOOGLE_WORKSPACE=live
-- GITHUB_REPOSITORY=detoximan/seedintake
-- GITHUB_BRANCH=main
-- GITHUB_SEED_BASE_URL=https://github.com/detoximan/seedintake/blob/main
-- TRANSCRIPTION_PROVIDER=google
+Для каждой необработанной ссылки смотри на URL и определяй тип. **Router** делает это мгновенно по паттерну URL без сетевых запросов.
 
-Как задеплоить:**
+### Таблица маршрутизации
+
+| URL-паттерн | Тип (Router) | Обработчик | Что делает |
+|---|---|---|---|
+| `instagram.com/reel/...` | `instagram_reels` | `instagram.py.process_reels()` | Скачивает видео (yt-dlp) → извлекает аудио (ffmpeg) → транскрибирует (Groq Whisper) |
+| `instagram.com/p/...` | `instagram_carousel` | `instagram.py.process_carousel()` | Скачивает фото через Instaloader → OCR каждого → дедупликация → текст описания |
+| `tiktok.com/video/...`, `vm.tiktok.com` | `tiktok_video` | `tiktok.py.process()` | Скачивает видео (yt-dlp) → транскрибация |
+| `tiktok.com/photo/...` | `tiktok_photo` | `tiktok.py.process()` | Скачивает фото (gallery-dl) → OCR |
+| `youtube.com/shorts/...` | `youtube_shorts` | `youtube.py.process()` | Скачивает аудио (yt-dlp) → транскрибация (Groq Whisper) |
+| `facebook.com`, `threads.net`, прочие | `text_post` | `web.py.process()` | Извлекает текст через yt-dlp или Jina Reader |
+
+### Ключевое: агент не скачивает и не транскрибирует
+
+Агент определяет тип по таблице выше и запускает CLI-скрипт. Обработчик (`instagram.py`, `tiktok.py`, `youtube.py`, `web.py`) делает всю работу. Агент **проверяет результат**, не выполняет его.
+
+## Шаг 4: Запустить обработчик и проверить
+
+**ВАЖНО:** Агент не скачивает видео и не делает транскрибацию вручную. Агент доверяет это скрипту. Задача агента — скормить скрипту правильный файл и проверить, что он отработал без ошибок.
+
+1. Запусти CLI-скрипт, передав ему файл ссылки:
+```bash
+cd SeedIntake/services/seed_pipeline
+PYTHONPATH=src python3 -m seed_pipeline.cli link-worker process --file <путь-к-файлу> --live-google
+```
+
+**Cookies для Instagram:** Используются автоматически. Команда `process` всегда включает cookies из `.cookies/instagram.txt`. Если файл cookies устарел — обновить его вручную из браузера.
+
+2. Посмотри вывод скрипта. Если там написано про ошибку — это твоя задача разобраться или сообщить пользователю.
+
+## Шаг 5: Проверить (КРИТИЧЕСКИ ВАЖНО)
+
+Агент ОБЯЗАН проверить каждый обработанный сид:
+
+1. **Тип контента определён правильно?** — Reels не должен обработаться как Post. Если URL это `/reel/`, а обработчик скачивал как фото — ошибка роутера.
+2. **Сквозная нумерация** — `2026-07-25-005-link.md` → `2026-07-25-005-f.md` → `2026-07-25-005-s.md`. Номера link, full и slim должны совпадать.
+3. **Оба файла созданы** — `Inbox/2026/full/2026-MM-DD-NNN-f.md` И `Inbox/2026/slim/2026-MM-DD-NNN-s.md`.
+4. **Статус обновлён** — в link-файле `status: processed` и заполнено `processed_seed_id`.
+5. **Ссылки между файлами** — slim ссылается на full, full содержит ссылку на исходный материал.
+
+Если что-то не совпадает — не молчать, а сообщить пользователю и исправить.
+
+## Шаг 6: Закоммитить
+
 ```bash
 cd SeedIntake
-./deploy.sh
+git add -A
+git commit -m "Обработка ссылок: <дата>"
+git push
 ```
 
-**Связанный сервис (не трогать!):**
-- `micro-razbor-bot` — живёт в `europe-west4` (Амстердам), тот же проект `detoximan2026`
+---
 
-## Жизненный цикл сида
-
-```
-Ссылка/текст/голос из Telegram
-        ↓
-  Telegram Intake Bot (router.py)
-        ↓
-  ┌─ Ссылка? → запись в Inbox/2026/links/ → Link Worker скачивает → транскрибация → сид
-  ├─ Текст?  → сразу в Seed Pipeline → сид
-  └─ Голос?  → Google Speech-to-Text → текст → Seed Pipeline → сид
-        ↓
-  Создаются два файла:
-  ├── Inbox/2026/full/2026-MM-DD-NNN-f.md  (полная версия)
-  └── Inbox/2026/slim/2026-MM-DD-NNN-s.md  (короткая, ссылается на full)
-        ↓
-  Строка в Google Sheets реестре (ID, ссылка на full, комментарий)
-```
-
-## Навигация между сидами (для Obsidian)
+## Навигация между сидами
 
 - **Slim → Full:** в slim-файле в первой строке markdown-ссылка на full
 - **Full → Slim:** в секции `# Оригинал` ссылка на slim
-- **Full → Источник:** в секции `# Ссылка на исходный материал` прямая URL на ролик/пост
-- **Google Sheets → Full:** в реестре HYPERLINK на full-файл в GitHub
+- **Full → Источник:** в секции `# Ссылка на исходный материал` прямая URL
 
-## Команды для LLM-агента
+---
 
-### Link Worker (обработка ссылок)
+## Ключевые файлы обработки
 
-```bash
-cd SeedIntake/services/seed_pipeline
-
-# Статистика
-git pull && PYTHONPATH=src python3 -m seed_pipeline.cli link-worker list --status new --summary
-
-# Обработка всех новых
-PYTHONPATH=src python3 -m seed_pipeline.cli link-worker process --limit 100 --live-google
-
-# Обработка конкретной ссылки
-PYTHONPATH=src python3 -m seed_pipeline.cli link-worker process --file <путь> --live-google
-
-# Проблемные (с cookies)
-PYTHONPATH=src python3 -m seed_pipeline.cli link-worker process-fallback --live-google
-
-# Ошибки
-PYTHONPATH=src python3 -m seed_pipeline.cli link-worker list --status failed
-
-# Сброс ошибки: в файле сменить status: failed → status: new
-```
-
-### Telegram Intake Bot
-
-```bash
-cd SeedIntake/services/telegram_intake_bot
-
-# Локальный polling
-set -a && source .env && set +a
-PYTHONPATH=src python3 -m telegram_intake_bot.cli polling
-
-# Webhook (Cloud Run)
-PYTHONPATH=src:../seed_pipeline/src python3 -m telegram_intake_bot.cli webhook
-```
-
-### Диагностика
-
-```bash
-cd SeedIntake/services/telegram_intake_bot
-PYTHONPATH=src python3 -m telegram_intake_bot.cli diagnose
-```
-
-## Важные файлы seed_pipeline
-
-| Файл | Что делает |
-|------|------------|
-| `link_worker/processors.py` | Главный процессор: скачивание + транскрибация |
-| `link_worker/worker.py` | Оркестратор воркера |
-| `link_worker/ytdlp.py` | Скачивание через yt-dlp |
-| `link_worker/jina.py` | Извлечение текста через Jina |
-| `link_worker/queue.py` | Работа с очередью ссылок |
+| Файл | Зона ответственности |
+|------|---------------------|
+| `link_worker/router.py` | Определение типа контента по URL |
+| `link_worker/processors.py` | Диспетчер — передаёт на нужный обработчик |
+| `link_worker/platform_processors/instagram.py` | Reels (видео+Whisper) и Posts/Carousels (фото+OCR) |
+| `link_worker/platform_processors/tiktok.py` | Видео и фото-слайдшоу |
+| `link_worker/platform_processors/youtube.py` | YouTube Shorts |
+| `link_worker/platform_processors/web.py` | Facebook, Threads, статьи |
 | `intake/markdown_writer.py` | Создание full/slim markdown |
-| `intake/github_storage.py` | Запись в GitHub через API |
-| `integrations/google_workspace_live.py` | Запись в Google Sheets |
-| `schemas/models.py` | Все датаклассы проекта |
+| `intake/github_storage.py` | Запись в GitHub |
+| `link_worker/queue.py` | Очередь ссылок |
 
-## Важные файлы telegram_intake_bot
-
-| Файл | Что делает |
-|------|------------|
-| `router.py` | Маршрутизация сообщений (текст/голос/ссылка) |
-| `link_queue_writer.py` | Запись ссылок в очередь |
-| `transcription.py` | Транскрибация голоса/видео |
-| `webhook.py` | HTTP webhook для Cloud Run |
-| `runtime.py` | Рантайм бота |
-| `flows/seed_intake.py` | Флоу приёма сидов |
-
-## Переменные окружения
-
-| Переменная | Описание | Секрет? |
-|------------|----------|--------|
-| `TELEGRAM_BOT_TOKEN` | Токен бота | Да |
-| `GITHUB_TOKEN` | Токен для записи в GitHub | Да |
-| `GROQ_API_KEY` | Ключ Groq STT | Да |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Путь к JSON сервисного аккаунта | Да |
-| `GOOGLE_SHEET_ID` | ID таблицы реестра | Да |
-| `GROQ_STT_MODEL` | Модель транскрибации | Нет |
-| `GROQ_STT_LANGUAGE` | Язык (ru) | Нет |
-| `SEED_MARKDOWN_STORAGE` | github/local | Нет |
-| `SEED_GOOGLE_WORKSPACE` | live/mock | Нет |
-| `GITHUB_REPOSITORY` | detoximan/seedintake | Нет |
-| `GITHUB_BRANCH` | main | Нет |
-
-## TODO (что предстоит)
-
-- [x] Обновить `GITHUB_REPOSITORY` в Cloud Run на `detoximan/seedintake`
-- [ ] Удалить task-зависимости из telegram_intake_bot (task_intake_writer, flows/task_intake.py)
-- [ ] Нормализовать `processors.py` (36KB, разбить на модули)
-- [ ] Добавить логирование/link-back из slim в full (Obsidian совместимость)
-- [x] Настроить Secret Manager для нового сервиса
-- [ ] Удалить сиды и сервисы из detoximan (после проверки)
+---
 
 ## Принципы
 
-- **Не трогать микроразбор** — это отдельный сервис, отдельный бот
-- **Секреты только через Secret Manager** — не в .env, не в коде
+- **Оркестрация прежде всего** — сначала определить тип, потом запустить нужный обработчик
+- **Сквозная нумерация** — один номер для link, full и slim
+- **Проверка после обработки** — не доверять результату слепо
+- **Cookies статично** — `.cookies/instagram.txt`, не из браузера
 - **Dry-run по умолчанию** — `--live-google` только когда явно нужно
-- **Один бот** — `@detoximan_intake_bot`, не создаём второго
-- **Markdown-first** — всё хранится в .md, связывается через ссылки

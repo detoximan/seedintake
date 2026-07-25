@@ -33,7 +33,7 @@ class MockSeedIntakeOrchestrator:
         self.registry = self.markdown_writer.registry
         self.google_workspace = google_workspace or MockGoogleWorkspace()
 
-    def create_seed(self, seed_input: SeedInput) -> SeedCreationResult:
+    def create_seed(self, seed_input: SeedInput, *, seed_id: str | None = None) -> SeedCreationResult:
         existing_seed_id = self.registry.find(seed_input.telegram_message_id)
         if existing_seed_id is not None:
             return SeedCreationResult(
@@ -53,13 +53,11 @@ class MockSeedIntakeOrchestrator:
                 ),
             )
 
-        match = re.search(r"(\d{4}-\d{2}-\d{2}-\d{3})-link\.md$", seed_input.telegram_message_id)
-        if match:
-            seed_id = match.group(1)
-        elif hasattr(self.markdown_writer, "next_seed_id"):
-            seed_id = self.markdown_writer.next_seed_id(seed_input.received_at)
-        else:
-            seed_id = _next_seed_id(self.markdown_writer.seed_root, seed_input.received_at)
+        if seed_id is None:
+            if hasattr(self.markdown_writer, "next_seed_id"):
+                seed_id = self.markdown_writer.next_seed_id(seed_input.received_at)
+            else:
+                seed_id = _next_seed_id(self.markdown_writer.seed_root, seed_input.received_at)
         try:
             created = self.markdown_writer.write(seed_input, seed_id=seed_id, record_processed=False)
         except Exception as exc:
