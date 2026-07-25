@@ -399,47 +399,41 @@ class YtDlpMediaDownloader:
 
 
 class GalleryDlMediaDownloader:
-    """Скачивает медиафайлы через gallery-dl (для TikTok каруселей)."""
-    def __init__(self, *, executable: str | None = None, use_cookies: bool = False, browser: str = "firefox") -> None:
-        self.executable = executable or os.getenv("GALLERY_DL_BIN", "gallery-dl").strip() or "gallery-dl"
+    """Скачивает медиафайлы через gallery-dl (для Instagram и TikTok каруселей)."""
+    def __init__(self, *, use_cookies: bool = False, browser: str = "firefox") -> None:
         self.use_cookies = use_cookies
         self.browser = browser
-
-    def _resolve_executable(self) -> str | None:
-        import os
-        import shutil
-        # 1) явный путь, если он указывает на существующий файл
-        if os.path.isabs(self.executable) and os.path.exists(self.executable):
-            return self.executable
-        # 2) что-то в PATH
-        found = shutil.which(self.executable)
-        if found:
-            return found
-        return None
 
     def download_all(self, url: str, target_dir: Path) -> list[Path]:
         import os
         import uuid
         import shutil
         import subprocess
+        import sys
 
-        executable = self._resolve_executable()
-        if not executable:
-            logger.warning("gallery-dl executable not found")
-            return []
+        # Try gallery-dl as Python module first, then as binary
+        cmd_prefix = None
+        if shutil.which('gallery-dl'):
+            cmd_prefix = ['gallery-dl']
+        else:
+            # Use python3 -m gallery_dl
+            cmd_prefix = [sys.executable, '-m', 'gallery_dl']
+        logger.info("gallery-dl using: %s", ' '.join(cmd_prefix))
 
         target_dir.mkdir(parents=True, exist_ok=True)
         log_file = target_dir / "_gallery_dl.log"
         command = [
-            executable,
+            *cmd_prefix,
             "--verbose",
             "--write-log", str(log_file),
             "--directory", str(target_dir),
         ]
         
-        cookies_file = os.getenv("SEED_TIKTOK_COOKIES")
-        if cookies_file and Path(cookies_file).exists():
-            command.extend(["--cookies", cookies_file])
+        # Use get_cookies_file (resolves .cookies/instagram.txt, tiktok.txt etc.)
+        cookies_file = get_cookies_file(url)
+        if cookies_file:
+            logger.info("gallery-dl using cookies from %s", cookies_file)
+            command.extend(["--cookies", str(cookies_file)])
         elif self.use_cookies:
             command.extend(["--cookies-from-browser", self.browser])
             
@@ -447,7 +441,6 @@ class GalleryDlMediaDownloader:
         
         import os
         logger.info("env diag: HOME=%s USER=%s PATH=%s CWD=%s", os.environ.get("HOME"), os.environ.get("USER"), os.environ.get("PATH"), os.getcwd())
-        logger.info("gallery-dl resolved to: %s", executable)
         
         try:
             completed = subprocess.run(command, capture_output=True, check=False, text=True, timeout=300)
@@ -527,9 +520,7 @@ class InstaloaderMediaDownloader:
                     L.context._session.cookies.set_cookie(cookie)
 
                 if 'sessionid' in L.context._session.cookies.get_dict():
-                    L.context.is_logged_in = True
-                    L.context.username = "file_user"
-                    logger.info("Instaloader: successfully injected cookies from file!")
+                    logger.info("Instaloader: successfully injected cookies from file (sessionid found)")
                 else:
                     logger.warning("Instaloader: Cookie file loaded, but 'sessionid' not found")
             except Exception as e:
@@ -543,9 +534,7 @@ class InstaloaderMediaDownloader:
                     L.context._session.cookies.set_cookie(cookie)
 
                 if 'sessionid' in L.context._session.cookies.get_dict():
-                    L.context.is_logged_in = True
-                    L.context.username = "firefox_user"
-                    logger.info("Instaloader: successfully injected Firefox cookies!")
+                    logger.info("Instaloader: successfully injected Firefox cookies (sessionid found)")
                 else:
                     logger.warning("Instaloader: Firefox cookies loaded, but 'sessionid' not found")
             except Exception as e:

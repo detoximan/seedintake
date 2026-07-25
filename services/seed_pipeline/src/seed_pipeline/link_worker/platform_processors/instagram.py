@@ -58,11 +58,37 @@ class InstagramProcessor:
         with tempfile.TemporaryDirectory(prefix="seed-insta-carousel-") as tmp_dir:
             tmp_path = Path(tmp_dir)
             files = []
+            download_method = "none"
+
+            # 1. Try Instaloader first (best for carousels)
             try:
                 instaloader = InstaloaderMediaDownloader(use_cookies=self.use_cookies)
                 files = instaloader.download_all(item.url, tmp_path)
+                if files:
+                    download_method = "instaloader"
+                    logger.info("Instaloader downloaded %d files", len(files))
+                else:
+                    logger.warning("Instaloader returned empty files for %s", item.url)
             except Exception as e:
-                logger.warning(f"Instaloader failed: {e}")
+                logger.warning("Instaloader failed: %s", e)
+
+            # 2. Fallback: try gallery-dl (works for Instagram photos that Instaloader can't get)
+            if not files:
+                try:
+                    logger.info("Falling back to gallery-dl for %s", item.url)
+                    from seed_pipeline.link_worker.processors import GalleryDlMediaDownloader
+                    gdl = GalleryDlMediaDownloader(use_cookies=self.use_cookies)
+                    files = gdl.download_all(item.url, tmp_path)
+                    if files:
+                        download_method = "gallery-dl"
+                        logger.info("gallery-dl downloaded %d files", len(files))
+                    else:
+                        logger.warning("gallery-dl also returned empty files for %s", item.url)
+                except Exception as e:
+                    logger.warning("gallery-dl fallback also failed: %s", e)
+
+            if not files:
+                logger.warning("NO FILES downloaded by any method for %s", item.url)
 
             images = sorted([f for f in files if f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp'}])
             ocr_results = []
