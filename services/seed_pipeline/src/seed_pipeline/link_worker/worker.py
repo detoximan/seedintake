@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -15,6 +16,96 @@ from .processors import FakeLinkProcessor, LinkProcessor
 from .queue import LinkQueueItem, LinkQueueStore, LinkQueueUpdate
 
 logger = logging.getLogger(__name__)
+
+CYRILLIC_PATTERN = re.compile(r"[а-яА-ЯёЁ]")
+TRANS_MARKER = "===================="
+SERVICE_MARKERS = [
+    "1 – текст на фото:",
+    "1 – Текст на фото:",
+    "2 – транскрибация аудио/видео:",
+    "2 – Транскрибация аудио/видео:",
+    "3 – текст под медиа:",
+    "3 – Текст под медиа:",
+]
+EMPTY_WORDS = {"нет", "no", "текста нет"}
+
+
+def _get_real_content(main_text: str) -> str:
+    result = main_text
+    for marker in SERVICE_MARKERS:
+        result = result.replace(marker, " ")
+    lines = []
+    for line in result.split("\n"):
+        stripped = line.strip()
+        if stripped.lower() in EMPTY_WORDS:
+            continue
+        if stripped:
+            lines.append(stripped)
+    return "\n".join(lines)
+
+
+def _is_foreign_content(material: str) -> bool:
+    if TRANS_MARKER in material:
+        return False
+    content = _get_real_content(material)
+    if not content:
+        return False
+    return not bool(CYRILLIC_PATTERN.search(content))
+
+
+def _translate_material_if_needed(material: str) -> str:
+    if not _is_foreign_content(material):
+        return material
+
+    groq_api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not groq_api_key:
+        dotenv_path = Path(__file__).resolve().parents[2] / ".env"
+        if dotenv_path.exists():
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(dotenv_path)
+                groq_api_key = os.getenv("GROQ_API_KEY", "").strip()
+            except ImportError:
+                pass
+
+    if not groq_api_key:
+        logger.warning("GROQ_API_KEY not found in env, skipping inline translation")
+        return material
+
+    try:
+        from groq import Groq
+        client = Groq(api_key=groq_api_key)
+        prompt = f"""Переведи следующий текст на русский язык. Требования:
+- Сохрани структуру строк вида «1 – Текст на фото: ...», «2 – Транскрибация аудио/видео: ...», «3 – Текст под медиа: ...». Сами заголовки уже на русском — не меняй их, переводи только содержимое после двоеточия.
+- Сохрани переносы строк и пустые строки.
+- Имена файлов в квадратных скобках (например [photo.jpg]), ссылки, хэштеги, упоминания @аккаунтов и эмодзи — не переводи, сохрани как есть.
+- Если содержимое секции — «нет» или «no», оставь русское «нет».
+- Переведи ВЕСЬ контент: текст на фото, транскрибацию, текст под медиа.
+
+Текст для перевода:
+---
+{material}
+---
+
+Верни ТОЛЬКО перевод, без пояснений."""
+
+        chat = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=8192,
+        )
+        translated = chat.choices[0].message.content.strip()
+        if translated.startswith("---"):
+            translated = translated[3:].lstrip()
+        if translated.endswith("---"):
+            translated = translated[:-3].rstrip()
+            
+        logger.info("Successfully translated material inline")
+        return material.rstrip() + "\n\n" + TRANS_MARKER + "\n\n" + translated
+    except Exception as exc:
+        logger.warning("Inline translation failed: %s", exc)
+        return material
 
 
 @dataclass(frozen=True)
@@ -86,7 +177,6 @@ class LinkWorker:
             if self._is_empty_result(material_to_write) and not processor_result.views and not processor_result.likes:
                 reason = "Нет контента (блокировка/удалено)"
                 
-                # При ошибке пустого контента просто меняем статус, не перемещая файл
                 if item.status == "new":
                     updated = self.queue_store.update(
                         item,
@@ -100,6 +190,9 @@ class LinkWorker:
                 )
                 return LinkProcessResult(path=updated.relative_path, status="failed", reason=reason)
 
+            # Автоматический прямой перевод иноязычного контента перед записью
+            material_to_write = _translate_material_if_needed(material_to_write)
+
             logger.warning(
                 "BEFORE CEDO WRITE: url=%s material_len=%s material_preview=%r",
                 item.url,
@@ -107,9 +200,7 @@ class LinkWorker:
                 (material_to_write or "")[:1000],
             )
             
-            # Extract seed_id from link filename to keep numbering consistent
-            # e.g. Inbox/2026/links/2026-07-25-005-link.md -> seed_id = 2026-07-25-005
-            link_stem = item.path.stem  # 2026-07-25-005-link
+            link_stem = item.path.stem
             desired_seed_id = link_stem.rsplit("-link", 1)[0] if link_stem.endswith("-link") else None
             
             creation_result = self.orchestrator.create_seed(
@@ -179,25 +270,20 @@ class LinkWorker:
 
     @staticmethod
     def _is_auth_error(reason: str) -> bool:
-        """Check if error message indicates authentication required."""
         reason_lower = reason.lower()
         auth_keywords = ["cookie", "login", "auth", "empty media", "instagram sent an empty", "нет контента", "no content"]
         return any(kw in reason_lower for kw in auth_keywords)
 
     @staticmethod
     def _is_empty_result(material: str) -> bool:
-        """Check if material contains only template headers and 'нет' values, no real content."""
         for line in material.splitlines():
             stripped = line.strip()
             if not stripped:
                 continue
-            # Skip section headers like '1 – Текст на фото:' etc.
             if re.match(r'^\d+\s*[–-]\s*(Текст на фото|Транскрибация видео|Текст под медиа)', stripped):
                 continue
-            # Skip lines that are just 'нет' or 'нет (error...)'
             if re.match(r'^нет\s*(\(.*?\))?\s*$', stripped):
                 continue
-            # Anything else is real content
             return False
         return True
 
