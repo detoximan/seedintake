@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -16,96 +15,6 @@ from .processors import FakeLinkProcessor, LinkProcessor
 from .queue import LinkQueueItem, LinkQueueStore, LinkQueueUpdate
 
 logger = logging.getLogger(__name__)
-
-CYRILLIC_PATTERN = re.compile(r"[а-яА-ЯёЁ]")
-TRANS_MARKER = "===================="
-SERVICE_MARKERS = [
-    "1 – текст на фото:",
-    "1 – Текст на фото:",
-    "2 – транскрибация аудио/видео:",
-    "2 – Транскрибация аудио/видео:",
-    "3 – текст под медиа:",
-    "3 – Текст под медиа:",
-]
-EMPTY_WORDS = {"нет", "no", "текста нет"}
-
-
-def _get_real_content(main_text: str) -> str:
-    result = main_text
-    for marker in SERVICE_MARKERS:
-        result = result.replace(marker, " ")
-    lines = []
-    for line in result.split("\n"):
-        stripped = line.strip()
-        if stripped.lower() in EMPTY_WORDS:
-            continue
-        if stripped:
-            lines.append(stripped)
-    return "\n".join(lines)
-
-
-def _is_foreign_content(material: str) -> bool:
-    if TRANS_MARKER in material:
-        return False
-    content = _get_real_content(material)
-    if not content:
-        return False
-    return not bool(CYRILLIC_PATTERN.search(content))
-
-
-def _translate_material_if_needed(material: str) -> str:
-    if not _is_foreign_content(material):
-        return material
-
-    groq_api_key = os.getenv("GROQ_API_KEY", "").strip()
-    if not groq_api_key:
-        dotenv_path = Path(__file__).resolve().parents[2] / ".env"
-        if dotenv_path.exists():
-            try:
-                from dotenv import load_dotenv
-                load_dotenv(dotenv_path)
-                groq_api_key = os.getenv("GROQ_API_KEY", "").strip()
-            except ImportError:
-                pass
-
-    if not groq_api_key:
-        logger.warning("GROQ_API_KEY not found in env, skipping inline translation")
-        return material
-
-    try:
-        from groq import Groq
-        client = Groq(api_key=groq_api_key)
-        prompt = f"""Переведи следующий текст на русский язык. Требования:
-- Сохрани структуру строк вида «1 – Текст на фото: ...», «2 – Транскрибация аудио/видео: ...», «3 – Текст под медиа: ...». Сами заголовки уже на русском — не меняй их, переводи только содержимое после двоеточия.
-- Сохрани переносы строк и пустые строки.
-- Имена файлов в квадратных скобках (например [photo.jpg]), ссылки, хэштеги, упоминания @аккаунтов и эмодзи — не переводи, сохрани как есть.
-- Если содержимое секции — «нет» или «no», оставь русское «нет».
-- Переведи ВЕСЬ контент: текст на фото, транскрибацию, текст под медиа.
-
-Текст для перевода:
----
-{material}
----
-
-Верни ТОЛЬКО перевод, без пояснений."""
-
-        chat = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=8192,
-        )
-        translated = chat.choices[0].message.content.strip()
-        if translated.startswith("---"):
-            translated = translated[3:].lstrip()
-        if translated.endswith("---"):
-            translated = translated[:-3].rstrip()
-            
-        logger.info("Successfully translated material inline")
-        return material.rstrip() + "\n\n" + TRANS_MARKER + "\n\n" + translated
-    except Exception as exc:
-        logger.warning("Inline translation failed: %s", exc)
-        return material
 
 
 @dataclass(frozen=True)
@@ -190,9 +99,6 @@ class LinkWorker:
                 )
                 return LinkProcessResult(path=updated.relative_path, status="failed", reason=reason)
 
-            # Автоматический прямой перевод иноязычного контента перед записью
-            material_to_write = _translate_material_if_needed(material_to_write)
-
             logger.warning(
                 "BEFORE CEDO WRITE: url=%s material_len=%s material_preview=%r",
                 item.url,
@@ -236,7 +142,7 @@ class LinkWorker:
                 seed_id = creation_result.seed_plan.seed_id
                 seed_path = creation_result.seed_plan.slim_markdown_path
             elif creation_result.error_record is not None:
-                seed_id = creation_result.error_record.artifact_id
+                seed_id = creation_record.error_record.artifact_id
             updated = self.queue_store.update(
                 item,
                 LinkQueueUpdate(
