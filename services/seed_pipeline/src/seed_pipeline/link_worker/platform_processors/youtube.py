@@ -29,15 +29,16 @@ class YouTubeProcessor:
             audio_path = self.downloader.download_audio(item.url, tmp_path)
             transcript = self.get_transcriber().transcribe(audio_path).strip()
 
-        # OCR текста с кадров видео
+        # OCR кадров — только если транскрибация пустая
         video_ocr_text = ""
-        try:
-            video_path = self.downloader.download_video(item.url, Path(tmp_dir))
-            if video_path:
-                ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
-                video_ocr_text = ocr_extractor.extract_text(video_path, Path(tmp_dir))
-        except Exception as e:
-            logger.warning(f"Video frame OCR failed: {e}")
+        if not transcript or transcript.strip() in ('', 'нет'):
+            try:
+                video_path = self.downloader.download_video(item.url, Path(tmp_dir))
+                if video_path:
+                    ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
+                    video_ocr_text = ocr_extractor.extract_text(video_path, Path(tmp_dir))
+            except Exception as e:
+                logger.warning(f"Video frame OCR failed: {e}")
 
         views, likes = "", ""
         try:

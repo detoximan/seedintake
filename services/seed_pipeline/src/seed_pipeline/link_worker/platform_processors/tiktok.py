@@ -50,9 +50,9 @@ class TikTokProcessor:
                 except Exception as e:
                     logger.warning(f"TikTok transcription failed: {e}")
 
-            # OCR текста с кадров видео (наложенные надписи на видео)
+            # OCR кадров — только если транскрибация пустая
             video_ocr_text = ""
-            if videos:
+            if videos and trans_str == 'нет':
                 try:
                     ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
                     video_ocr_text = ocr_extractor.extract_text(videos[0], tmp_path)

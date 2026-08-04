@@ -34,16 +34,17 @@ class InstagramProcessor:
             audio_path = downloader.download_audio(item.url, tmp_path)
             transcript = self.get_transcriber().transcribe(audio_path).strip()
 
-        # OCR текста с кадров видео (наложенные надписи)
+        # OCR кадров — только если транскрибация пустая (музыка без речи)
         video_ocr_text = ""
-        try:
-            video_downloader = YtDlpAudioDownloader.from_env(use_cookies=self.use_cookies, rate_limiter=self.rate_limiter)
-            video_path = video_downloader.download_video(item.url, tmp_path)
-            if video_path:
-                ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
-                video_ocr_text = ocr_extractor.extract_text(video_path, tmp_path)
-        except Exception as e:
-            logger.warning(f"Video frame OCR failed: {e}")
+        if not transcript or transcript.strip() in ('', 'нет'):
+            try:
+                video_downloader = YtDlpAudioDownloader.from_env(use_cookies=self.use_cookies, rate_limiter=self.rate_limiter)
+                video_path = video_downloader.download_video(item.url, tmp_path)
+                if video_path:
+                    ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
+                    video_ocr_text = ocr_extractor.extract_text(video_path, tmp_path)
+            except Exception as e:
+                logger.warning(f"Video frame OCR failed: {e}")
 
         views, likes, desc = "", "", ""
         try:
