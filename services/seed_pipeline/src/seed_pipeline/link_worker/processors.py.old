@@ -348,43 +348,6 @@ class ImageOcrExtractor:
             return f"(ошибка OCR: {e})"
 
 
-class VideoFrameOCRExtractor:
-    """Извлекает кадры из видео и прогоняет через OCR для распознавания наложенного текста."""
-    def __init__(self, ocr: ImageOcrExtractor, frame_interval: float = 2.0):
-        self.ocr = ocr
-        self.frame_interval = frame_interval
-
-    def extract_text(self, video_path: Path, workdir: Path) -> str:
-        import re
-        frames_dir = workdir / "frames_ocr"
-        frames_dir.mkdir(exist_ok=True)
-        try:
-            subprocess.run([
-                "ffmpeg", "-y", "-i", str(video_path),
-                "-vf", f"fps=1/{self.frame_interval}",
-                "-q:v", "2",
-                str(frames_dir / "frame_%04d.jpg")
-            ], capture_output=True, check=True, timeout=120)
-        except Exception as e:
-            logger.warning("Failed to extract frames from %s: %s", video_path.name, e)
-            return ""
-
-        texts = []
-        for frame_path in sorted(frames_dir.glob("frame_*.jpg")):
-            text = self.ocr.extract(frame_path)
-            if text and not text.startswith("(пусто)") and not text.startswith("(ошибка"):
-                texts.append(text)
-        # Дедупликация
-        seen = set()
-        unique_texts = []
-        for t in texts:
-            norm = re.sub(r"\s+", " ", t).strip().lower()
-            if norm and norm not in seen:
-                seen.add(norm)
-                unique_texts.append(t)
-        return "\n".join(unique_texts) if unique_texts else ""
-
-
 class YtDlpMediaDownloader:
     """Скачивает все медиафайлы (фото+видео) без конвертации в аудио."""
     def __init__(self, *, executable: str = "yt-dlp", use_cookies: bool = False, browser: str = "chrome", rate_limiter = None) -> None:
@@ -788,39 +751,6 @@ class YtDlpAudioDownloader:
             use_cookies=use_cookies,
             rate_limiter=rate_limiter,
         )
-
-    def download_video(self, url: str, target_dir: Path) -> Path | None:
-        """Скачивает видео для последующего OCR кадров."""
-        if shutil.which(self.executable) is None:
-            logger.warning("yt-dlp not found, skipping video download for OCR")
-            return None
-        target_dir.mkdir(parents=True, exist_ok=True)
-        command = [
-            self.executable, "--no-playlist",
-            "-f", "best[height<=720]",
-            "--paths", str(target_dir),
-            "--output", "%(id)s.%(ext)s",
-        ]
-        cookies_file = get_cookies_file(url)
-        if cookies_file:
-            if self.rate_limiter:
-                self.rate_limiter.wait_if_needed()
-            command.extend(["--cookies", str(cookies_file)])
-        elif self.use_cookies:
-            if self.rate_limiter:
-                self.rate_limiter.wait_if_needed()
-            command.extend(["--cookies-from-browser", self.browser])
-        command.append(url)
-        try:
-            completed = subprocess.run(command, capture_output=True, check=False, text=True, timeout=120)
-        except subprocess.TimeoutExpired:
-            logger.warning("yt-dlp video download timed out")
-            return None
-        if completed.returncode != 0:
-            logger.warning("yt-dlp video download failed")
-            return None
-        video_files = [p for p in target_dir.iterdir() if p.is_file() and p.suffix in {'.mp4', '.mkv', '.webm'}]
-        return video_files[0] if video_files else None
 
     def download_audio(self, url: str, target_dir: Path) -> Path:
         if shutil.which(self.executable) is None:

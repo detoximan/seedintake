@@ -4,8 +4,7 @@ import tempfile
 from pathlib import Path
 from seed_pipeline.link_worker.queue import LinkQueueItem
 from seed_pipeline.link_worker.processors import (
-    LinkProcessorResult, GroqAudioTranscriber, YtDlpAudioDownloader, RealYtDlpMetadataDownloader,
-    ImageOcrExtractor, VideoFrameOCRExtractor
+    LinkProcessorResult, GroqAudioTranscriber, YtDlpAudioDownloader, RealYtDlpMetadataDownloader
 )
 
 
@@ -16,7 +15,6 @@ class YouTubeProcessor:
         self.rate_limiter = rate_limiter
         self.downloader = YtDlpAudioDownloader.from_env()
         self.meta_downloader = RealYtDlpMetadataDownloader(use_cookies=use_cookies)
-        self.ocr = ImageOcrExtractor()
 
     def get_transcriber(self) -> GroqAudioTranscriber:
         if self._transcriber is None:
@@ -25,19 +23,8 @@ class YouTubeProcessor:
 
     def process(self, item: LinkQueueItem) -> LinkProcessorResult:
         with tempfile.TemporaryDirectory(prefix="seed-yt-shorts-") as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            audio_path = self.downloader.download_audio(item.url, tmp_path)
+            audio_path = self.downloader.download_audio(item.url, Path(tmp_dir))
             transcript = self.get_transcriber().transcribe(audio_path).strip()
-
-        # OCR текста с кадров видео
-        video_ocr_text = ""
-        try:
-            video_path = self.downloader.download_video(item.url, Path(tmp_dir))
-            if video_path:
-                ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
-                video_ocr_text = ocr_extractor.extract_text(video_path, Path(tmp_dir))
-        except Exception as e:
-            logger.warning(f"Video frame OCR failed: {e}")
 
         views, likes = "", ""
         try:
@@ -47,10 +34,8 @@ class YouTubeProcessor:
         except Exception:
             pass
 
-        ocr_section = f"1 – Текст на фото:\n{video_ocr_text}" if video_ocr_text else "1 – Текст на фото: нет"
-        material = f"{ocr_section}\n\n2 – Транскрибация аудио/видео:\n{transcript}"
         return LinkProcessorResult(
-            material=material,
+            material=transcript,
             comment=item.context.strip() or "YouTube Shorts processed by YouTubeProcessor.",
             views=views,
             likes=likes

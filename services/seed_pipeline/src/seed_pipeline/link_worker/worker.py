@@ -142,7 +142,7 @@ class LinkWorker:
                 seed_id = creation_result.seed_plan.seed_id
                 seed_path = creation_result.seed_plan.slim_markdown_path
             elif creation_result.error_record is not None:
-                seed_id = creation_record.error_record.artifact_id
+                seed_id = creation_result.error_record.artifact_id
             updated = self.queue_store.update(
                 item,
                 LinkQueueUpdate(

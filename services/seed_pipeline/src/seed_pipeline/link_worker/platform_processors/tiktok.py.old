@@ -6,8 +6,7 @@ from pathlib import Path
 from seed_pipeline.link_worker.queue import LinkQueueItem
 from seed_pipeline.link_worker.processors import (
     LinkProcessorResult, ImageOcrExtractor, GroqAudioTranscriber,
-    YtDlpAudioDownloader, YtDlpMediaDownloader, RealYtDlpMetadataDownloader,
-    VideoFrameOCRExtractor
+    GalleryDlMediaDownloader, RealYtDlpMetadataDownloader, YtDlpAudioDownloader
 )
 
 logger = logging.getLogger(__name__)
@@ -29,12 +28,8 @@ class TikTokProcessor:
     def process(self, item: LinkQueueItem) -> LinkProcessorResult:
         with tempfile.TemporaryDirectory(prefix="seed-tiktok-") as tmp_dir:
             tmp_path = Path(tmp_dir)
-            
-            # Скачиваем видео через yt-dlp с куками Firefox
-            video_downloader = YtDlpMediaDownloader(use_cookies=True, browser="firefox", rate_limiter=self.rate_limiter)
-            files = video_downloader.download_all(item.url, tmp_path)
-            if not files:
-                logger.warning("yt-dlp didn't download any files for %s", item.url)
+            gdl = GalleryDlMediaDownloader(use_cookies=self.use_cookies)
+            files = gdl.download_all(item.url, tmp_path)
 
             images = sorted([f for f in files if f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp'}])
             videos = sorted([f for f in files if f.suffix.lower() in {'.mp4', '.mov', '.webm'}])
@@ -43,21 +38,12 @@ class TikTokProcessor:
             trans_results = []
 
             if videos:
-                dl = YtDlpAudioDownloader.from_env(use_cookies=self.use_cookies, rate_limiter=self.rate_limiter)
+                dl = YtDlpAudioDownloader.from_env()
                 try:
                     audio_path = dl.download_audio(item.url, tmp_path)
                     trans_results.append(self.get_transcriber().transcribe(audio_path))
                 except Exception as e:
                     logger.warning(f"TikTok transcription failed: {e}")
-
-            # OCR текста с кадров видео (наложенные надписи на видео)
-            video_ocr_text = ""
-            if videos:
-                try:
-                    ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
-                    video_ocr_text = ocr_extractor.extract_text(videos[0], tmp_path)
-                except Exception as e:
-                    logger.warning(f"Video frame OCR failed: {e}")
 
             views, likes, desc = "", "", ""
             try:
@@ -68,11 +54,7 @@ class TikTokProcessor:
             except Exception:
                 pass
 
-            ocr_str = "\n".join(ocr_results) if ocr_results else ""
-            if video_ocr_text:
-                ocr_str = (ocr_str + "\n" + video_ocr_text) if ocr_str else video_ocr_text
-            if not ocr_str:
-                ocr_str = "нет"
+            ocr_str = "\n".join(ocr_results) if ocr_results else "нет"
             trans_str = "\n".join(trans_results) if trans_results else "нет"
             parts = [
                 f"1 – Текст на фото:\n{ocr_str}",
