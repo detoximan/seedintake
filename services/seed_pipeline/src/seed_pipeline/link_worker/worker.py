@@ -84,15 +84,7 @@ class LinkWorker:
                 
             # Check if result is empty (no content)
             if self._is_empty_result(material_to_write) and not processor_result.views and not processor_result.likes:
-                reason = "Нет контента (блокировка/удалено)"
-                
-                if item.status == "new":
-                    updated = self.queue_store.update(
-                        item,
-                        LinkQueueUpdate(status="pending_cookies", failure_reason=reason, failed_at=timestamp),
-                    )
-                    return LinkProcessResult(path=updated.relative_path, status="pending_cookies", reason="Нет контента (ожидает cookies)")
-
+                reason = "empty_content - транскрибация не получена, контент отсутствует"
                 updated = self.queue_store.update(
                     item,
                     LinkQueueUpdate(status="failed", failure_reason=reason, failed_at=timestamp),

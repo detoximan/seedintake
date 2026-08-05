@@ -29,9 +29,13 @@ class TikTokProcessor:
     def process(self, item: LinkQueueItem) -> LinkProcessorResult:
         with tempfile.TemporaryDirectory(prefix="seed-tiktok-") as tmp_dir:
             tmp_path = Path(tmp_dir)
-            
-            # Скачиваем видео через yt-dlp с куками Firefox
-            video_downloader = YtDlpMediaDownloader(use_cookies=True, browser="firefox", rate_limiter=self.rate_limiter)
+
+            # 1. Скачиваем всё (видео и/или фото) через yt-dlp с cookies
+            video_downloader = YtDlpMediaDownloader(
+                use_cookies=self.use_cookies,
+                browser="firefox",
+                rate_limiter=self.rate_limiter,
+            )
             files = video_downloader.download_all(item.url, tmp_path)
             if not files:
                 logger.warning("yt-dlp didn't download any files for %s", item.url)
@@ -39,26 +43,33 @@ class TikTokProcessor:
             images = sorted([f for f in files if f.suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp'}])
             videos = sorted([f for f in files if f.suffix.lower() in {'.mp4', '.mov', '.webm'}])
 
-            ocr_results = [f"[{img.name}]: {self.ocr.extract(img)}" for img in images]
+            # 2. OCR для фото
+            ocr_results = []
+            for img in images:
+                txt = self.ocr.extract(img)
+                if txt and not txt.startswith("(пусто)") and not txt.startswith("(ошибка"):
+                    ocr_results.append(f"[{img.name}]: {txt}")
+
+            # 3. Транскрибация для видео
             trans_results = []
-
-            if videos:
-                dl = YtDlpAudioDownloader.from_env(use_cookies=self.use_cookies, rate_limiter=self.rate_limiter)
+            for vid in videos:
                 try:
-                    audio_path = dl.download_audio(item.url, tmp_path)
-                    trans_results.append(self.get_transcriber().transcribe(audio_path))
+                    audio_path = self._extract_audio_from_video(vid, tmp_path)
+                    text = self.get_transcriber().transcribe(audio_path).strip()
+                    if text and text.lower() not in ('', 'нет'):
+                        trans_results.append(f"[{vid.name}]: {text}")
+                    else:
+                        # Транскрибация пустая — значит музыка без речи.
+                        # Делаем покадровый OCR видео.
+                        logger.info("Транскрибация пустая для %s, запускаем покадровый OCR", vid.name)
+                        ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
+                        video_ocr_text = ocr_extractor.extract_text(vid, tmp_path)
+                        if video_ocr_text:
+                            ocr_results.append(f"[{vid.name}]: {video_ocr_text}")
                 except Exception as e:
-                    logger.warning(f"TikTok transcription failed: {e}")
+                    logger.warning("TikTok обработка видео %s не удалась: %s", vid.name, e)
 
-            # OCR кадров — только если транскрибация пустая
-            video_ocr_text = ""
-            if videos and trans_str == 'нет':
-                try:
-                    ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
-                    video_ocr_text = ocr_extractor.extract_text(videos[0], tmp_path)
-                except Exception as e:
-                    logger.warning(f"Video frame OCR failed: {e}")
-
+            # 4. Метаданные
             views, likes, desc = "", "", ""
             try:
                 meta = self.meta_downloader.get_metadata(item.url)
@@ -68,11 +79,7 @@ class TikTokProcessor:
             except Exception:
                 pass
 
-            ocr_str = "\n".join(ocr_results) if ocr_results else ""
-            if video_ocr_text:
-                ocr_str = (ocr_str + "\n" + video_ocr_text) if ocr_str else video_ocr_text
-            if not ocr_str:
-                ocr_str = "нет"
+            ocr_str = "\n".join(ocr_results) if ocr_results else "нет"
             trans_str = "\n".join(trans_results) if trans_results else "нет"
             parts = [
                 f"1 – Текст на фото:\n{ocr_str}",
@@ -85,3 +92,18 @@ class TikTokProcessor:
                 views=views,
                 likes=likes
             )
+
+    def _extract_audio_from_video(self, video_path: Path, workdir: Path) -> Path:
+        """Извлекает аудио из видео через ffmpeg."""
+        import subprocess
+        audio_path = workdir / f"{video_path.stem}.mp3"
+        command = [
+            "ffmpeg", "-y", "-i", str(video_path), "-vn", "-acodec", "libmp3lame",
+            "-ab", "64k", str(audio_path)
+        ]
+        try:
+            subprocess.run(command, capture_output=True, check=True, timeout=60)
+            return audio_path
+        except Exception as e:
+            logger.warning("ffmpeg audio extraction failed, using original video: %s", e)
+            return video_path

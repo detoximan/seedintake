@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import tempfile
 from pathlib import Path
 from seed_pipeline.link_worker.queue import LinkQueueItem
@@ -8,13 +9,18 @@ from seed_pipeline.link_worker.processors import (
     ImageOcrExtractor, VideoFrameOCRExtractor
 )
 
+logger = logging.getLogger(__name__)
+
 
 class YouTubeProcessor:
     def __init__(self, use_cookies: bool = False, rate_limiter = None):
         self._transcriber = None
         self.use_cookies = use_cookies
         self.rate_limiter = rate_limiter
-        self.downloader = YtDlpAudioDownloader.from_env()
+        self.downloader = YtDlpAudioDownloader.from_env(
+            use_cookies=use_cookies,
+            rate_limiter=rate_limiter,
+        )
         self.meta_downloader = RealYtDlpMetadataDownloader(use_cookies=use_cookies)
         self.ocr = ImageOcrExtractor()
 
@@ -26,33 +32,41 @@ class YouTubeProcessor:
     def process(self, item: LinkQueueItem) -> LinkProcessorResult:
         with tempfile.TemporaryDirectory(prefix="seed-yt-shorts-") as tmp_dir:
             tmp_path = Path(tmp_dir)
-            audio_path = self.downloader.download_audio(item.url, tmp_path)
-            transcript = self.get_transcriber().transcribe(audio_path).strip()
 
-        # OCR кадров — только если транскрибация пустая
-        video_ocr_text = ""
-        if not transcript or transcript.strip() in ('', 'нет'):
+            # 1. Скачиваем аудио и транскрибируем
+            transcript = ""
             try:
-                video_path = self.downloader.download_video(item.url, Path(tmp_dir))
-                if video_path:
-                    ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
-                    video_ocr_text = ocr_extractor.extract_text(video_path, Path(tmp_dir))
+                audio_path = self.downloader.download_audio(item.url, tmp_path)
+                transcript = self.get_transcriber().transcribe(audio_path).strip()
             except Exception as e:
-                logger.warning(f"Video frame OCR failed: {e}")
+                logger.warning("Транскрибация не удалась: %s", e)
 
-        views, likes = "", ""
-        try:
-            meta = self.meta_downloader.get_metadata(item.url)
-            views = str(meta.get("view_count", ""))
-            likes = str(meta.get("like_count", ""))
-        except Exception:
-            pass
+            # 2. Если транскрибация пустая — скачиваем видео целиком и делаем покадровый OCR
+            video_ocr_text = ""
+            if not transcript or transcript.lower() in ('', 'нет'):
+                logger.info("Транскрибация пустая, запускаем покадровый OCR для %s", item.url)
+                try:
+                    video_path = self.downloader.download_video(item.url, tmp_path)
+                    if video_path:
+                        ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
+                        video_ocr_text = ocr_extractor.extract_text(video_path, tmp_path)
+                except Exception as e:
+                    logger.warning("Покадровый OCR не удался: %s", e)
 
-        ocr_section = f"1 – Текст на фото:\n{video_ocr_text}" if video_ocr_text else "1 – Текст на фото: нет"
-        material = f"{ocr_section}\n\n2 – Транскрибация аудио/видео:\n{transcript}"
-        return LinkProcessorResult(
-            material=material,
-            comment=item.context.strip() or "YouTube Shorts processed by YouTubeProcessor.",
-            views=views,
-            likes=likes
-        )
+            # 3. Метаданные
+            views, likes = "", ""
+            try:
+                meta = self.meta_downloader.get_metadata(item.url)
+                views = str(meta.get("view_count", ""))
+                likes = str(meta.get("like_count", ""))
+            except Exception:
+                pass
+
+            ocr_section = f"1 – Текст на фото:\n{video_ocr_text}" if video_ocr_text else "1 – Текст на фото: нет"
+            material = f"{ocr_section}\n\n2 – Транскрибация аудио/видео:\n{transcript if transcript else 'нет'}"
+            return LinkProcessorResult(
+                material=material,
+                comment=item.context.strip() or "YouTube Shorts processed by YouTubeProcessor.",
+                views=views,
+                likes=likes
+            )
