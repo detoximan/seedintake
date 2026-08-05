@@ -178,7 +178,7 @@ class LinkWorker:
             stripped = line.strip()
             if not stripped:
                 continue
-            if re.match(r'^\d+\s*[–-]\s*(Текст на фото|Транскрибация видео|Текст под медиа)', stripped):
+            if re.match(r'^\d+\s*[–-]\s*(Текст на фото|Транскрибация.*|Текст под медиа)', stripped):
                 continue
             if re.match(r'^нет\s*(\(.*?\))?\s*$', stripped):
                 continue

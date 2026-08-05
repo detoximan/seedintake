@@ -70,23 +70,31 @@ class InstagramProcessor:
         with tempfile.TemporaryDirectory(prefix="seed-insta-reel-") as tmp_dir:
             tmp_path = Path(tmp_dir)
 
-            # 1. Скачиваем видео целиком (нужно для транскрибации + возможного OCR кадров)
-            video_downloader = YtDlpAudioDownloader.from_env(
+            downloader = YtDlpAudioDownloader.from_env(
                 use_cookies=self.use_cookies,
                 rate_limiter=self.rate_limiter,
             )
-            video_path = video_downloader.download_video(item.url, tmp_path)
 
-            # 2. Транскрибация
+            # 1. Пробуем скачать видео целиком (один запрос — из него и аудио, и кадры)
+            video_path = downloader.download_video(item.url, tmp_path)
+
+            # 2. Транскрибация: из видео (ffmpeg) или напрямую аудио (fallback)
             transcript = ""
             if video_path:
                 try:
-                    audio_path = video_downloader.download_audio(item.url, tmp_path)
+                    audio_path = self._extract_audio_from_video(video_path, tmp_path)
                     transcript = self.get_transcriber().transcribe(audio_path).strip()
                 except Exception as e:
-                    logger.warning("Транскрибация не удалась: %s", e)
+                    logger.warning("Транскрибация из видео не удалась: %s", e)
+            else:
+                # Видео не скачалось — пробуем аудио напрямую
+                try:
+                    audio_path = downloader.download_audio(item.url, tmp_path)
+                    transcript = self.get_transcriber().transcribe(audio_path).strip()
+                except Exception as e:
+                    logger.warning("Транскрибация (прямое аудио) не удалась: %s", e)
 
-            # 3. Если транскрибация пустая — покадровый OCR
+            # 3. Если транскрибация пустая и видео есть — покадровый OCR
             video_ocr_text = ""
             if (not transcript or transcript.lower() in ('', 'нет')) and video_path:
                 logger.info("Транскрибация пустая, запускаем покадровый OCR для %s", item.url)
