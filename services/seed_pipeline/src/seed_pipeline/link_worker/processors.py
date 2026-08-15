@@ -807,7 +807,6 @@ class YtDlpAudioDownloader:
         target_dir.mkdir(parents=True, exist_ok=True)
         command = [
             self.executable, "--no-playlist",
-            "-f", "best[height<=720]",
             "--paths", str(target_dir),
             "--output", "%(id)s.%(ext)s",
         ]
