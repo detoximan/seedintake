@@ -16,6 +16,16 @@ from pathlib import Path
 from typing import Protocol
 from urllib import error, request
 
+# Ensure local venv and tool paths in PATH
+for _p in [
+    str(Path(__file__).resolve().parents[5] / ".venv" / "bin"),
+    str(Path(__file__).resolve().parents[4] / ".venv" / "bin"),
+    str(Path(__file__).resolve().parents[3] / ".venv" / "bin"),
+    "/usr/local/bin",
+]:
+    if os.path.exists(_p) and _p not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = f"{_p}:{os.environ.get('PATH', '')}"
+
 # OCR dependencies
 try:
     import pytesseract  # type: ignore

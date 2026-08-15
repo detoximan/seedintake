@@ -82,8 +82,8 @@ class LinkWorker:
             if not material_to_write:
                 material_to_write = "текста нет"
                 
-            # Check if result is empty (no content)
-            if self._is_empty_result(material_to_write) and not processor_result.views and not processor_result.likes:
+            # Check if result is empty (no content) regardless of views/likes
+            if self._is_empty_result(material_to_write):
                 reason = "empty_content - транскрибация не получена, контент отсутствует"
                 updated = self.queue_store.update(
                     item,
