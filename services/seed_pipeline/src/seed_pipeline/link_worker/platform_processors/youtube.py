@@ -41,10 +41,12 @@ class YouTubeProcessor:
             except Exception as e:
                 logger.warning("Транскрибация не удалась: %s", e)
 
-            # 2. Если транскрибация пустая — скачиваем видео целиком и делаем покадровый OCR
+
+            # 2. Если транскрибация пустая или ≤3 слов — покадровый OCR
             video_ocr_text = ""
-            if not transcript or transcript.lower() in ('', 'нет'):
-                logger.info("Транскрибация пустая, запускаем покадровый OCR для %s", item.url)
+            words = transcript.split() if transcript else []
+            if not transcript or transcript.lower() in ('', 'нет') or len(words) <= 3:
+                logger.info("Транскрибация слабая (%r), запускаем покадровый OCR для %s", transcript, item.url)
                 try:
                     video_path = self.downloader.download_video(item.url, tmp_path)
                     if video_path:
@@ -52,6 +54,7 @@ class YouTubeProcessor:
                         video_ocr_text = ocr_extractor.extract_text(video_path, tmp_path)
                 except Exception as e:
                     logger.warning("Покадровый OCR не удался: %s", e)
+
 
             # 3. Метаданные
             views, likes = "", ""

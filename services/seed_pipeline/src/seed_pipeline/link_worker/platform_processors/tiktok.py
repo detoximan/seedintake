@@ -114,11 +114,12 @@ class TikTokProcessor:
                 try:
                     audio_path = self._extract_audio_from_video(vid, tmp_path)
                     text = self.get_transcriber().transcribe(audio_path).strip()
-                    if text and text.lower() not in ('', 'нет'):
+                    words = text.split() if text else []
+                    if text and text.lower() not in ('', 'нет') and len(words) > 3:
                         trans_results.append(f"[{vid.name}]: {text}")
                     else:
-                        # Речи нет (музыка/тишина) -> покадровый OCR
-                        logger.info("Транскрибация пустая для %s, запускаем покадровый OCR", vid.name)
+                        # Речи нет или ≤3 слов — покадровый OCR
+                        logger.info("Транскрибация слабая (%r) для %s, запускаем покадровый OCR", text, vid.name)
                         ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
                         video_ocr_text = ocr_extractor.extract_text(vid, tmp_path)
                         if video_ocr_text:

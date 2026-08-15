@@ -42,9 +42,17 @@ class InstagramProcessor:
             logger.warning("ffmpeg audio extraction failed, using original video: %s", e)
             return video_path
 
+    @staticmethod
+    def _is_weak_transcript(transcript: str) -> bool:
+        """Возвращает True если транскрибация пустая или ≤3 слов (галлюцинация Whisper)."""
+        if not transcript or transcript.lower() in ('', 'нет'):
+            return True
+        words = transcript.split()
+        return len(words) <= 3
+
     def _process_video_file(self, vid: Path, tmp_path: Path) -> tuple[str, str]:
         """
-        Обрабатывает один видеофайл: транскрибация → если пусто, покадровый OCR.
+        Обрабатывает один видеофайл: транскрибация → если пусто или ≤3 слов, покадровый OCR.
         Возвращает (transcript_text, ocr_text).
         """
         ocr_text = ""
@@ -55,9 +63,9 @@ class InstagramProcessor:
         except Exception as e:
             logger.warning("Транскрибация не удалась для %s: %s", vid.name, e)
 
-        # Если транскрибация пустая — покадровый OCR
-        if not transcript or transcript.lower() in ('', 'нет'):
-            logger.info("Транскрибация пустая для %s, запускаем покадровый OCR", vid.name)
+        # Если транскрибация пустая или ≤3 слов — покадровый OCR
+        if self._is_weak_transcript(transcript):
+            logger.info("Транскрибация слабая (%r) для %s, запускаем покадровый OCR", transcript, vid.name)
             try:
                 ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
                 ocr_text = ocr_extractor.extract_text(vid, tmp_path)
@@ -94,10 +102,10 @@ class InstagramProcessor:
                 except Exception as e:
                     logger.warning("Транскрибация (прямое аудио) не удалась: %s", e)
 
-            # 3. Если транскрибация пустая и видео есть — покадровый OCR
+            # 3. Если транскрибация пустая или ≤3 слов и видео есть — покадровый OCR
             video_ocr_text = ""
-            if (not transcript or transcript.lower() in ('', 'нет')) and video_path:
-                logger.info("Транскрибация пустая, запускаем покадровый OCR для %s", item.url)
+            if self._is_weak_transcript(transcript) and video_path:
+                logger.info("Транскрибация слабая (%r), запускаем покадровый OCR для %s", transcript, item.url)
                 try:
                     ocr_extractor = VideoFrameOCRExtractor(self.ocr, frame_interval=2.0)
                     video_ocr_text = ocr_extractor.extract_text(video_path, tmp_path)
