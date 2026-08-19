@@ -1,14 +1,8 @@
 # Упавшие (нераспознанные) ссылки SeedIntake — 2026-08-18
 # Формат: статус<TAB>seed_id<TAB>платформа<TAB>url
 
-[2026-05-05-068] instagram_reels (pending_cookies)
-https://www.instagram.com/reel/DB22co1NWoZ/?igsh=MXBjYjBjeTJtYm92cw==
-
 [2026-05-07-001] unknown (failed)
 https://share.google/NOUHFdLJtZESNqu4W
-
-[2026-05-09-007] instagram_reels (pending_cookies)
-https://www.instagram.com/reel/DB8ALYoIKBv/?igsh=MWg1NW43emE2cHE0dQ==
 
 [2026-07-31-003] instagram_reels (pending_cookies)
 https://www.instagram.com/reel/DYAlb3zBYt0/
@@ -63,9 +57,6 @@ https://vt.tiktok.com/ZS4uCE6dA
 
 [2026-08-09-003] tiktok (failed)
 https://vt.tiktok.com/ZS4trFoX5
-
-[2026-08-10-003] instagram_reels (failed)
-https://www.instagram.com/reel/DaG5zwCPHpo/
 
 [2026-08-14-005] tiktok (failed)
 https://vt.tiktok.com/ZSVdcd7Yk
