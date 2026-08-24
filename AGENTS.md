@@ -210,3 +210,37 @@ PYTHONPATH=src python3 -m seed_pipeline.cli link-worker list --status processed
 2. Найти все необработанные ссылки (без full/slim)
 3. Обработать каждую по одной, последовательно
 4. В конце — `git add -A && git commit && git push`
+
+### 7. Дубли ссылок — удалять немедленно
+
+Иногда бот-сборщик записывает одну и ту же ссылку дважды. Это нормально, но дубли нужно удалять.
+
+**Правила:**
+- Если два link-файла содержат одинаковый URL — это дубль
+- Оставляем файл с **меньшим** ID (он был первым)
+- Удаляем файл с **бо́льшим** ID: link, full и slim
+- **Нумерация НЕ меняется** — пропущенные номера это нормально
+- Дубли искать ПЕРЕД началом обработки, чтобы не тратить ресурсы на обработку дублей
+
+**Проверка дублей:**
+```python
+# Скрипт поиска дублей по URL в link-файлах
+import re
+from pathlib import Path
+from collections import defaultdict
+
+links_dir = Path('SeedIntake/Inbox/2026/links')
+url_to_ids = defaultdict(list)
+for lf in sorted(links_dir.glob('*-link.md')):
+    text = lf.read_text(encoding='utf-8')
+    url_m = re.search(r'url:\s*(.+)', text)
+    if url_m:
+        url = url_m.group(1).strip()
+        stem = lf.stem.replace('-link', '')
+        url_to_ids[url].append(stem)
+
+for url, ids in url_to_ids.items():
+    if len(ids) > 1:
+        print(f'ДУБЛЬ: {url}')
+        print(f'  Оставить: {ids[0]}, Удалить: {ids[1:]}')
+```
