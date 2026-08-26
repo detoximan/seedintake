@@ -144,22 +144,15 @@ class TikTokProcessor:
                 except Exception:
                     pass
 
-            ocr_str = "\
-".join(ocr_results) if ocr_results else "нет"
-            trans_str = "\
-".join(trans_results) if trans_results else "нет"
+            ocr_str = "\n".join(ocr_results) if ocr_results else "нет"
+            trans_str = "\n".join(trans_results) if trans_results else "нет"
             parts = [
-                f"1 – Текст на фото:\
-{ocr_str}",
-                f"2 – Транскрибация аудио/видео:\
-{trans_str}",
-                f"3 – Текст под медиа:\
-{desc if desc else 'нет'}"
+                f"1 – Текст на фото:\n{ocr_str}",
+                f"2 – Транскрибация аудио/видео:\n{trans_str}",
+                f"3 – Текст под медиа:\n{desc if desc else 'нет'}"
             ]
             return LinkProcessorResult(
-                material="\
-\
-".join(parts),
+                material="\n\n".join(parts),
                 comment=item.context.strip() or "TikTok content processed by TikTokProcessor.",
                 views=views,
                 likes=likes
