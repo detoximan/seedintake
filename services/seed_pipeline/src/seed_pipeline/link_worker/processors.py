@@ -178,7 +178,7 @@ class TextPostProcessor:
         )
 
     def process(self, item: LinkQueueItem) -> LinkProcessorResult:
-        if item.platform != "text_post":
+        if item.platform not in ("text_post", "facebook_post", "threads_post"):
             raise RuntimeError(f"Text Post processor received unsupported platform: {item.platform}")
 
         material_parts = []
