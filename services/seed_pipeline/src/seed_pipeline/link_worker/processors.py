@@ -70,6 +70,10 @@ def get_cookies_file(url: str) -> Path | None:
         names.append("tiktok.txt")
     elif "youtube" in platform_val:
         names.append("youtube.txt")
+    elif "facebook" in platform_val:
+        names.append("facebook.txt")
+    elif "threads" in platform_val:
+        names.append("threads.txt")
     names.append("cookies.txt")
 
     roots = [

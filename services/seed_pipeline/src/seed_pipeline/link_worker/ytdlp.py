@@ -28,7 +28,11 @@ class RealYtDlpMetadataDownloader:
                 "--paths", str(tmp_path),
                 "--output", "%(id)s.%(ext)s",
             ]
-            if self.use_cookies:
+            from .processors import get_cookies_file
+            cookies_file = get_cookies_file(url)
+            if cookies_file:
+                command.extend(["--cookies", str(cookies_file)])
+            elif self.use_cookies:
                 command.extend(["--cookies-from-browser", self.browser])
             
             command.append(url)
