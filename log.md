@@ -4,6 +4,23 @@
 > Каждая запись начинается с префикса: `## [YYYY-MM-DD] <категория> | <Заголовок>`  
 > Просмотр последних записей: `grep "^## \[" log.md | tail -10`
 
+## [2026-09-07] cleanup | Удаление 7 архивных/разовых утилит и очистка index.md
+
+- **Контекст:** Очистка кодовой базы от мёртвого кода и опасных архивных утилит с зашитыми номерами строк.
+- **Что сделано:**
+  1. Удалены 7 архивных скриптов:
+     - `services/seed_pipeline/fix_translation_format.py` (зашитые строки таблицы)
+     - `services/seed_pipeline/verify_translation.py` (зашитые строки таблицы)
+     - `services/seed_pipeline/manual_translate_next10.py` (зашитые строки таблицы)
+     - `services/seed_pipeline/clear_today_sheet.py` (зашитая дата 2026-07-12)
+     - `services/seed_pipeline/apply_translation.py` (устаревший прототип)
+     - `services/seed_pipeline/src/seed_pipeline/link_worker/sync_google_sheet.py` (старый черновик)
+     - `services/seed_pipeline/src/seed_pipeline/link_worker/test_gsheet.py` (старый черновик)
+  2. Обновлён [index.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/index.md): каталог содержит исключительно актуальные боевые скрипты и расширенное руководство по устранению неполадок.
+  3. Проведены тесты: 34/34 в `seed_pipeline`, 52/52 в `telegram_intake_bot` (все 86 тестов успешно пройдены).
+
+---
+
 ## [2026-09-07] cleanup | Удаление дубликатов строк Google Sheets и чистка временных черновиков
 
 - **Контекст:** Окончательная очистка репозитория и Google Sheets от дубликатов и временных списков по согласованию с пользователем.

@@ -55,18 +55,6 @@ PYTHONPATH=src python3 -m seed_pipeline.cli link-worker process-fallback --live-
 | [create_magicmind_sheet.py](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/seed_pipeline/create_magicmind_sheet.py) | **Импорт спец-коллекции MagicMind.** Создает отдельный лист "Magic Mind" в Google Sheets и заполняет его данными из файла `MagicMind`. | `python3 services/seed_pipeline/create_magicmind_sheet.py` |
 | [deploy.sh](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/telegram_intake_bot/deploy.sh) | **Сборка и выкатка бота.** Собирает контейнер через Google Cloud Build и деплоит в Cloud Run (`seedintake-telegram-bot`, Amsterdam). | `./services/telegram_intake_bot/deploy.sh` |
 
-### 🟡 Архивные и разовые утилиты (для специфических правок)
-
-> ⚠️ **Внимание:** эти скрипты содержат исторически зашитые номера строк таблицы и использовались для точечных правок в прошлых сессиях. Не запускайте их вслепую без проверки кода!
-
-| Скрипт | Назначение | Примечание |
-|---|---|---|
-| [fix_translation_format.py](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/seed_pipeline/fix_translation_format.py) | Удаление мусорных маркеров `---` из ячеек перевода. | Содержит список строк `target_rows`. |
-| [verify_translation.py](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/seed_pipeline/verify_translation.py) | Выборочное чтение обновленных строк таблицы для проверки формата. | Содержит список строк `target_rows`. |
-| [manual_translate_next10.py](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/seed_pipeline/manual_translate_next10.py) | Вывод пачки из 10 строк таблицы для подготовки ручного перевода. | Содержит список строк `target_rows`. |
-| [clear_today_sheet.py](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/seed_pipeline/clear_today_sheet.py) | Экстренное удаление строк из таблицы за конкретную дату (`2026-07-12-`). | Использовать только при аварийной повторной обработке. |
-| [apply_translation.py](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/seed_pipeline/apply_translation.py) | Ранний прототип синхронизации перевода. | *Устарел:* используйте более надежный `apply_bilingual_sync.py`. |
-
 ---
 
 ## 🚑 Решение типовых проблем (Troubleshooting Guide)
