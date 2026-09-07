@@ -12,7 +12,7 @@
 | URL сервиса | `https://seedintake-telegram-bot-v7om675z7q-ez.a.run.app` |
 | Telegram-бот | `@detoximan_intake_bot` |
 | GitHub репозиторий | `detoximan/seedintake` (ветка `main`) |
-| Деплой-скрипт | `./deploy.sh` в корне репозитория |
+| Деплой-скрипт | `services/telegram_intake_bot/deploy.sh` |
 | Связанный сервис (НЕ трогать!) | `micro-razbor-bot` (в том же проекте `detoximan2026`, `europe-west4`) |
 
 ## Секреты (через GCP Secret Manager)
@@ -41,6 +41,6 @@ PYTHONPATH=src:../seed_pipeline/src python3 -m telegram_intake_bot.cli webhook
 ## Деплой в Cloud Run
 
 ```bash
-# Из корня репозитория:
-./deploy.sh
+# Запуск скрипта деплоя (автоматически собирает контейнер через Cloud Build):
+./services/telegram_intake_bot/deploy.sh
 ```

@@ -73,7 +73,7 @@ Cloud Build → Docker → Cloud Run (webhook mode). Запускать из к�
 
 ```bash
 cd SeedIntake
-./deploy.sh
+./services/telegram_intake_bot/deploy.sh
 ```
 
 Canonical deployment: service seedintake-telegram-bot, region europe-west4 (Amsterdam), project detoximan2026. Service URL: https://seedintake-telegram-bot-v7om675z7q-ez.a.run.app; health check: /health; webhook: /telegram/webhook. Final Seed files are stored in detoximan/seedintake under Inbox/YYYY/full/ and Inbox/YYYY/slim/.

@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 PROJECT=detoximan2026
 REGION=europe-west4
 SERVICE=seedintake-telegram-bot
+IMAGE="gcr.io/${PROJECT}/${SERVICE}"
 
-if [[ ! -f Dockerfile ]]; then
-  echo "Run deploy.sh from the SeedIntake project root." >&2
-  exit 1
-fi
+echo "Building container image via Cloud Build..."
+gcloud builds submit "$REPO_ROOT" \
+  --config "$SCRIPT_DIR/cloudbuild.yaml" \
+  --project "$PROJECT" \
+  --substitutions "_IMAGE=$IMAGE"
 
+echo "Deploying $SERVICE to Cloud Run..."
 gcloud run deploy "$SERVICE" \
-  --source . \
+  --image "$IMAGE" \
   --project "$PROJECT" \
   --region "$REGION" \
   --allow-unauthenticated \
