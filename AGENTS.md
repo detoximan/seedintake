@@ -1,6 +1,10 @@
 # SeedIntake — AGENTS.md
 
-Любой LLM-агент, зашедший в проект, начинает здесь. Технические данные деплоя и секреты — в `AGENTS.old.md`.
+Любой LLM-агент, зашедший в проект, начинает здесь.
+- **Полный каталог скриптов и карты проекта:** [index.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/index.md) (по методологии [3_karpathy-idea.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/3_karpathy-idea.md))
+- **Хронологический журнал сессий:** [log.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/log.md)
+- **База знаний и регламенты агента:** [agents/](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents) (промпты OCR, регламенты каруселей, cookies, troubleshooting)
+- Технические данные деплоя и секреты — в `AGENTS.old.md`.
 
 ## Логика обработки (железная)
 

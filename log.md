@@ -1,136 +1,78 @@
-# Лог сессии: Обработка Instagram Reels (2026-07-12, 001-007)
+# Журнал событий (log.md)
 
-## Контекст
+> Хронологический append-only журнал проекта по спецификации **LLM Wiki** ([3_karpathy-idea.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/3_karpathy-idea.md)).  
+> Каждая запись начинается с префикса: `## [YYYY-MM-DD] <категория> | <Заголовок>`  
+> Просмотр последних записей: `grep "^## \[" log.md | tail -10`
 
-Было 7 ссылок Instagram Reels за 12 июля 2026 (001-007). После первого запуска `process-fallback` они получили статус `processed`, но slim/full файлы не создались — писали в несуществующую директорию `1inbox/seeds/`.
+---
 
-## Проблема 1: Неправильный путь в коде (жестко зашит `1inbox/seeds/`)
+## [2026-09-07] architecture | Внедрение LLM Wiki: index.md, agents/ knowledge base и стандартизация log.md
 
-**Файлы проекта — `SeedIntake/`**, структура:
-```
-Inbox/2026/        ← реальная папка (с большой буквы)
-  full/
-  slim/
-  links/
-```
+- **Контекст:** Приведение проекта в соответствие с концепцией Andrej Karpathy LLM Wiki (`3_karpathy-idea.md`). Систематизация вспомогательных скриптов, базы знаний агента и структуры документации.
+- **Что сделано:**
+  1. Создан корневой навигационный хаб [index.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/index.md), каталогизирующий все вспомогательные скрипты `services/seed_pipeline/` (`apply_bilingual_sync.py`, `audit_translations.py`, `restore_sheet_links.py` и др.), команды CLI и уровни данных.
+  2. Систематизирована папка [agents/](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents):
+     - Добавлен [agents/README.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents/README.md) — обзор базы знаний.
+     - Оформлен [agents/carousel_translation_guideline.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents/carousel_translation_guideline.md) — регламент по-слайдового перевода 1-в-1 без внешних API.
+     - Оформлен [agents/cookies_management.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents/cookies_management.md) — руководство по cookies для Instagram, TikTok, Facebook.
+     - Оформлен [agents/troubleshooting.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents/troubleshooting.md) — решение типовых проблем (дубли, кэш, Google Workspace).
+     - Сохранен и связан [agents/prompt_video_ocr_hybrid.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents/prompt_video_ocr_hybrid.md) — ТЗ гибридного OCR + Whisper.
+  3. `log.md` приведен к стандарту Karpathy с поддержкой парсинга через `grep "^## \["`. Включена история ключевых сессий репозитория.
+  4. Обновлен [AGENTS.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/AGENTS.md) со ссылками на `index.md`, `log.md` и базу знаний.
 
-**Код писал в:** `repo_root / "1inbox" / "seeds"` — такой папки не существует.
+---
 
-**Исправлено в 3 файлах:**
+## [2026-09-07] audit & repair | Аудит переводов каруселей, по-слайдовый перевод 15 постов и синхронизация
 
-1. **`services/seed_pipeline/src/seed_pipeline/intake/markdown_writer.py`** (строка ~40):
-   - Было: `self.seed_root = seed_root or self.repo_root / "1inbox" / "seeds"`
-   - Стало: `self.seed_root = seed_root or self.repo_root / "Inbox"`
+- **Контекст:** Выявлена проблема потери слайдов и обрезки переводов в многостраничных Instagram-каруселях после вызова сторонних API перевода.
+- **Что сделано:**
+  1. Разработан скрипт аудита [services/seed_pipeline/audit_translations.py](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/seed_pipeline/audit_translations.py).
+  2. Разработан скрипт атомарной синхронизации [services/seed_pipeline/apply_bilingual_sync.py](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/seed_pipeline/apply_bilingual_sync.py), синхронизирующий `full`, `slim` и Google Sheets.
+  3. Проведен ручной по-слайдовый перевод 15 поврежденных англоязычных каруселей силами LLM (без внешних API), соблюдая соответствие `[photo.jpg]: текст` 1-в-1.
+  4. Полный повторный аудит подтвердил 0 дефектов и 0 рассинхронов.
+  5. Внесены жесткие запреты в [AGENTS.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/AGENTS.md) на использование Groq/внешних API для перевода текстов.
 
-2. **`services/seed_pipeline/src/seed_pipeline/intake/dry_run.py`** (строка 68):
-   - Было: `seed_id = _next_seed_id(root / "1inbox" / "seeds", ...)`
-   - Стало: `seed_id = _next_seed_id(root / "Inbox", ...)
+---
 
-3. **`services/seed_pipeline/src/seed_pipeline/link_worker/queue.py`** (строка ~35):
-   - Было: `self.seed_root = seed_root or self.repo_root / "1inbox" / "seeds"`
-   - Стало: `self.seed_root = seed_root or self.repo_root / "Inbox"`
-   - Также добавлен `links/` в паттерн поиска для `include_fallback`, иначе `process-fallback` не видел файлы в `links/`.
+## [2026-08-14] maintenance | Массовая транскрибация, актуализация очереди и восстановление ссылок
 
-## Проблема 2: Реестр дубликатов (processed_messages.json)
+- **Контекст:** Аудит репозитория, подтяжка 78 новых ссылок, устранение сбоев гиперссылок в Google Sheets.
+- **Что сделано:**
+  1. Создан и применен [services/seed_pipeline/restore_sheet_links.py](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/seed_pipeline/restore_sheet_links.py) для восстановления формул `=HYPERLINK(...)` в колонке A.
+  2. Запущена последовательная обработка очереди через `link-worker process --limit 5 --live-google`.
+  3. Проведен аудит контента и синхронизация статусов очереди. Подробности зафиксированы в [2026-08-14-worklog.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/2026-08-14-worklog.md).
 
-Даже после исправления путей slim/full не создавались. Причина:
-- `SeedMarkdownWriter` перед записью проверяет `processed_messages.json` (`runtime/tmp/seed_pipeline/processed_messages.json`)
-- При первом (ошибочном) запуске реестр запомнил ссылку `002-link.md` → `2026-07-12-001`
-- При повторном запуске `orchestrator` находил дубликат и не создавал slim/full
+---
 
-**Решение:** Очистить реестр от записей за 12 июля:
-```python
-# код очистки
-p = Path('runtime/tmp/seed_pipeline/processed_messages.json')
-data = json.loads(p.read_text())
-for k in list(data):
-    if '2026-07-12' in k:
-        del data[k]
-p.write_text(json.dumps(data, indent=2) + '\n')
-```
+## [2026-07-25] maintenance | Рефакторинг Link Worker: переход на модульную архитектуру роутера
 
-## Проблема 3: Instagram требует cookies
+- **Контекст:** Перевод `link_worker` с монолитного `UniversalMediaProcessor` на модульную архитектуру `URL Router + Specialized Workers`.
+- **Что сделано:**
+  1. Разделены процессоры по платформам (`instagram.py`, `tiktok.py`, `youtube.py`, `web.py`).
+  2. Устранены блокировки Instagram через обязательное использование cookies и rate limiting.
+  3. Подробный план и логи зафиксированы в [2026-07-25-workplan.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/2026-07-25-workplan.md) и [2026-07-25-worklog.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/2026-07-25-worklog.md).
 
-`process` (без cookies) падает с `Instagram sent an empty media response`. Нужен `process-fallback`, который использует `--cookies-from-browser`.
+---
 
-## Текущее состояние (на момент завершения сессии)
+## [2026-07-21] deploy | Миграция Telegram-бота SeedIntake в Cloud Run (europe-west4 Amsterdam)
 
-- [x] Пути исправлены (3 файла)
-- [x] Очередь `links/` теперь видна для `process-fallback`
-- [x] Транскрибация работает (текст есть в логах)
-- [x] Google Sheet обновляется
-- [ ] Slim/full НЕ созданы — реестр не дочищен до конца
-- [ ] Фоновый `process-fallback` запущен и работает, но без slim/full
+- **Контекст:** Перенос продакшн-сервиса бота из региона US в Европу (Amsterdam) для минимизации задержек и стабильного вебхука.
+- **Что сделано:**
+  1. Cloud Run сервис: `seedintake-telegram-bot` развернут в регионе `europe-west4`.
+  2. Ревизия `seedintake-telegram-bot-00002-zjx` получила 100% трафика.
+  3. URL: `https://seedintake-telegram-bot-v7om675z7q-ez.a.run.app`.
+  4. Telegram webhook успешно переключен, `pending_updates: 0`.
+  5. Секреты перенесены в Secret Manager. Тесты: seed_pipeline 34/34, telegram_intake_bot 52/52.
 
-## Команды для нового чата
+---
 
-### Полный перезапуск (рекомендуется)
+## [2026-07-12] session | Отладка Instagram Reels (001-007) и исправление путей очереди Inbox
 
-```bash
-# 1. Убить фоновый процесс
-ps aux | grep 'link-worker process-fallback' | grep -v grep | awk '{print $2}' | xargs -r kill
-
-# 2. Очистить реестр от записей за 12 июля
-python3 -c "
-import json
-p = 'runtime/tmp/seed_pipeline/processed_messages.json'
-data = json.loads(open(p).read())
-data = {k: v for k, v in data.items() if '2026-07-12' not in k}
-open(p, 'w').write(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
-print('cleaned:', len(data), 'entries left')
-"
-
-# 3. Сбросить статусы 002-007 в pending_cookies
-python3 -c "
-import re, pathlib
-for n in range(2, 8):
-    p = pathlib.Path(f'Inbox/2026/links/2026-07-12-{n:03d}-link.md')
-    content = p.read_text()
-    content = re.sub(r'^status: processed\$', 'status: pending_cookies', content, flags=re.MULTILINE)
-    p.write_text(content)
-"
-
-# 4. Удалить старые slim/full (если есть)
-find . -path '*/Inbox/2026/*/2026-07-12-*' | xargs -r rm
-
-# 5. Запустить обработку
-cd services/seed_pipeline
-set -a && source ./.env 2>/dev/null; set +a
-PYTHONPATH=src python3 -m seed_pipeline.cli link-worker process-fallback --live-google 2>&1
-```
-
-### Проверка результатов
-
-```bash
-# Статусы link-файлов
-python3 -c "
-import pathlib, re
-for n in range(1, 8):
-    p = pathlib.Path(f'Inbox/2026/links/2026-07-12-{n:03d}-link.md')
-    if p.exists():
-        m = re.search(r'^status:\s*(\S+)', p.read_text(), re.M)
-        print(f'{p.name}: {m.group(1) if m else \"no status\"}')
-"
-
-# Список slim/full
-find Inbox/2026 -name '2026-07-12-*' -not -path '*/links/*'
-```
-
-## Технические детали
-
-- **Транскрибация успешна:** для ссылки 002 (DaXKeeIsC73) лог показывает текст ~1047 символов
-- **Google Sheet:** ID `1lc6Q1bzQ4AW40pPJhVYJAof8tH6oCAFtmSXQZwg4r98`, запись успешна
-- **Cookie rate limit:** 65 секунд между запросами (env `COOKIE_REQUEST_INTERVAL`)
-- **youtube-dl** с `--cookies-from-browser` работает, но Instagram может слать пустой ответ
-
-## Миграция отдельного SeedIntake завершена — 2026-07-21
-
-- Cloud Run: seedintake-telegram-bot, europe-west4 (Amsterdam).
-- Ревизия: seedintake-telegram-bot-00002-zjx, 100% трафика.
-- URL: https://seedintake-telegram-bot-v7om675z7q-ez.a.run.app.
-- Health check: /health возвращает ok.
-- Telegram webhook переключён на европейский сервис; pending updates: 0, ошибок нет.
-- GitHub storage: detoximan/seedintake; очередь: Inbox/YYYY/links/; результаты: Inbox/YYYY/full/ и Inbox/YYYY/slim/.
-- Секреты подключены через Secret Manager; значения в репозиторий не записываются.
-- Тесты: seed_pipeline 34/34, telegram_intake_bot 52/52.
-- Старый американский detoximan-telegram-intake-bot оставлен без активного webhook до отдельного решения об удалении.
+- **Контекст:** 7 ссылок Instagram Reels за 12 июля 2026 получили статус `processed`, но файлы `slim`/`full` не создались из-за зашитого старого пути `1inbox/seeds/`.
+- **Что сделано:**
+  1. Исправлены пути в коде:
+     - `services/seed_pipeline/src/seed_pipeline/intake/markdown_writer.py`
+     - `services/seed_pipeline/src/seed_pipeline/intake/dry_run.py`
+     - `services/seed_pipeline/src/seed_pipeline/link_worker/queue.py`
+  2. Очищен реестр дубликатов `runtime/tmp/seed_pipeline/processed_messages.json` за 12 июля.
+  3. Настроена поддержка `process-fallback` с браузерными cookies для преодоления пустых ответов Instagram.
