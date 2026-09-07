@@ -3,7 +3,6 @@
 Любой LLM-агент, зашедший в проект, начинает здесь. Это документ-схема (**The Schema**) по методологии Karpathy LLM Wiki ([3_karpathy-idea.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/3_karpathy-idea.md)).
 - **Полный каталог скриптов и навигация проекта:** [index.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/index.md)
 - **Хронологический журнал сессий:** [log.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/log.md)
-- Технические данные деплоя и секреты — в `AGENTS.old.md`.
 
 ## Логика обработки (железная)
 
@@ -153,6 +152,42 @@ PYTHONPATH=src python3 -m seed_pipeline.cli link-worker list --status processed
 - **Двуязычный формат** — оригинал + `====================` + русский
 - **Сквозная нумерация** — один номер для link, full и slim
 - **Воркер сам ставит `failed`** при пустом контенте — агент не должен это делать вручную
+
+---
+
+## Деплой и Telegram Intake Bot
+
+| Параметр | Значение |
+|---|---|
+| Сервис Cloud Run | `seedintake-telegram-bot` |
+| Регион | `europe-west4` (Amsterdam, Netherlands) |
+| GCP Проект | `detoximan2026` |
+| URL сервиса | `https://seedintake-telegram-bot-v7om675z7q-ez.a.run.app` |
+| Telegram-бот | `@detoximan_intake_bot` |
+| GitHub репозиторий | `detoximan/seedintake` (ветка `main`) |
+| Деплой-скрипт | `./deploy.sh` в корне репозитория |
+| Связанный сервис (НЕ трогать!) | `micro-razbor-bot` (в том же проекте `detoximan2026`, `europe-west4`) |
+
+**Секреты (через Secret Manager в GCP):**
+- `telegram-bot-token` → `TELEGRAM_BOT_TOKEN`
+- `github-token` → `GITHUB_TOKEN`
+- `telegram-webhook-secret` → `TELEGRAM_WEBHOOK_SECRET`
+- `google-sheet-id` → `GOOGLE_SHEET_ID`
+- `google-service-account-json` → `/secrets/google/service-account.json`
+
+**Команды управления ботом:**
+```bash
+cd services/telegram_intake_bot
+
+# Диагностика
+PYTHONPATH=src python3 -m telegram_intake_bot.cli diagnose
+
+# Локальный polling (при тестировании)
+PYTHONPATH=src python3 -m telegram_intake_bot.cli polling
+
+# Webhook режим (для Cloud Run)
+PYTHONPATH=src:../seed_pipeline/src python3 -m telegram_intake_bot.cli webhook
+```
 
 ---
 

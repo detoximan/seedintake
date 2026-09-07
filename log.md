@@ -6,6 +6,16 @@
 
 ---
 
+## [2026-09-07] cleanup | Консолидация AGENTS.md, удаление AGENTS.old.md и устаревших ворклогов
+
+- **Контекст:** Анализ исторических файлов `worklog`/`workplan` и устаревшего `AGENTS.old.md`.
+- **Что сделано:**
+  1. Вся ценная техническая информация по деплою в Cloud Run, секретам и командам Telegram Intake Bot перенесена из `AGENTS.old.md` напрямую в [AGENTS.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/AGENTS.md). Файл `AGENTS.old.md` удалён.
+  2. Проанализированы выполненные планы и логи: `2026-07-25-worklog.md`, `2026-07-25-workplan.md`, `2026-08-14-worklog.md`, `2026-08-14-workplan.md`, `2026-09-07-workplan.md`. Все реализованные задачи удалены из корня репозитория.
+  3. Все оставшиеся нереализованные задачи (21 ссылка из `file.atlinks`, 7 ссылок из `tiktok_failed.md`, осиротевшие link-файлы) упакованы в готовый рабочий промпт [PROMPT_NEXT_CHAT.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/PROMPT_NEXT_CHAT.md).
+
+---
+
 ## [2026-09-07] architecture | Внедрение чистой LLM Wiki: создание index.md и стандартизация log.md
 
 - **Контекст:** Приведение структуры проекта к канонической модели LLM Wiki Андрея Карпаты (`3_karpathy-idea.md`): Schema (`AGENTS.md`) + Catalog (`index.md`) + Timeline (`log.md`) + Data (`Inbox/`) + Code (`services/`). Устранена избыточная папка `agents/`.

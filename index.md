@@ -9,8 +9,9 @@
 
 | Документ | Роль по Karpathy | Назначение |
 |---|---|---|
-| [AGENTS.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/AGENTS.md) | **The Schema** | **Единая точка входа для LLM-агента.** Все правила извлечения, по-слайдового перевода, cookies, циклы обработки и устранение ошибок. |
+| [AGENTS.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/AGENTS.md) | **The Schema** | **Единая точка входа для LLM-агента.** Все правила извлечения, по-слайдового перевода, cookies, деплоя, циклы обработки и устранение ошибок. |
 | [log.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/log.md) | **The Log** | **Хронологический append-only журнал.** История сессий, инжестов, миграций и аудитов. |
+| [PROMPT_NEXT_CHAT.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/PROMPT_NEXT_CHAT.md) | **Next Session** | Промпт для следующего чата с нерешенными задачами (21 ссылка file.atlinks, tiktok_failed). |
 | [3_karpathy-idea.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/3_karpathy-idea.md) | **Architecture** | Концептуальная основа: трехуровневая архитектура персональной базы знаний (Raw Sources → Wiki → Schema). |
 
 ---
