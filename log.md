@@ -6,19 +6,13 @@
 
 ---
 
-## [2026-09-07] architecture | Внедрение LLM Wiki: index.md, agents/ knowledge base и стандартизация log.md
+## [2026-09-07] architecture | Внедрение чистой LLM Wiki: создание index.md и стандартизация log.md
 
-- **Контекст:** Приведение проекта в соответствие с концепцией Andrej Karpathy LLM Wiki (`3_karpathy-idea.md`). Систематизация вспомогательных скриптов, базы знаний агента и структуры документации.
+- **Контекст:** Приведение структуры проекта к канонической модели LLM Wiki Андрея Карпаты (`3_karpathy-idea.md`): Schema (`AGENTS.md`) + Catalog (`index.md`) + Timeline (`log.md`) + Data (`Inbox/`) + Code (`services/`). Устранена избыточная папка `agents/`.
 - **Что сделано:**
-  1. Создан корневой навигационный хаб [index.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/index.md), каталогизирующий все вспомогательные скрипты `services/seed_pipeline/` (`apply_bilingual_sync.py`, `audit_translations.py`, `restore_sheet_links.py` и др.), команды CLI и уровни данных.
-  2. Систематизирована папка [agents/](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents):
-     - Добавлен [agents/README.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents/README.md) — обзор базы знаний.
-     - Оформлен [agents/carousel_translation_guideline.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents/carousel_translation_guideline.md) — регламент по-слайдового перевода 1-в-1 без внешних API.
-     - Оформлен [agents/cookies_management.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents/cookies_management.md) — руководство по cookies для Instagram, TikTok, Facebook.
-     - Оформлен [agents/troubleshooting.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents/troubleshooting.md) — решение типовых проблем (дубли, кэш, Google Workspace).
-     - Сохранен и связан [agents/prompt_video_ocr_hybrid.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/agents/prompt_video_ocr_hybrid.md) — ТЗ гибридного OCR + Whisper.
-  3. `log.md` приведен к стандарту Karpathy с поддержкой парсинга через `grep "^## \["`. Включена история ключевых сессий репозитория.
-  4. Обновлен [AGENTS.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/AGENTS.md) со ссылками на `index.md`, `log.md` и базу знаний.
+  1. Создан корневой предметный каталог [index.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/index.md), описывающий все вспомогательные скрипты `services/seed_pipeline/` (`apply_bilingual_sync.py`, `audit_translations.py`, `restore_sheet_links.py` и др.), команды запуска CLI и уровни данных.
+  2. Удалена промежуточная папка `agents/` с дублирующими файлами; все правила работы, регламенты и инструкции консолидированы в едином документе-схеме [AGENTS.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/AGENTS.md).
+  3. `log.md` переведен в строгий хронологический append-only формат Карпаты с поддержкой быстрого парсинга заголовков через `grep "^## \[" log.md`.
 
 ---
 
