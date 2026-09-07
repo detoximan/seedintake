@@ -6,6 +6,16 @@
 
 ---
 
+## [2026-09-07] architecture | Разделение вселенных Telegram Intake Bot и Seed Pipeline
+
+- **Контекст:** Изоляция сервиса Telegram Intake Bot (приём входящих ссылок) от ядра обработки ссылок Seed Pipeline. Корневой `AGENTS.md` сфокусирован исключительно на пайплайне обработки контента.
+- **Что сделано:**
+  1. Из [AGENTS.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/AGENTS.md) полностью удалены специфичные для Cloud Run и Telegram-бота данные деплоя и секреты.
+  2. Создан [services/telegram_intake_bot/DEPLOY.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/telegram_intake_bot/DEPLOY.md), инкапсулирующий все параметры инфраструктуры, секретов и деплоя бота.
+  3. Сформирован подробный рабочий план в [PROMPT_NEXT_CHAT.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/PROMPT_NEXT_CHAT.md) с обязательным правилом ревизии на свежий контекст перед выполнением.
+
+---
+
 ## [2026-09-07] cleanup | Консолидация AGENTS.md, удаление AGENTS.old.md и устаревших ворклогов
 
 - **Контекст:** Анализ исторических файлов `worklog`/`workplan` и устаревшего `AGENTS.old.md`.

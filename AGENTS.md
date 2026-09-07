@@ -155,42 +155,6 @@ PYTHONPATH=src python3 -m seed_pipeline.cli link-worker list --status processed
 
 ---
 
-## Деплой и Telegram Intake Bot
-
-| Параметр | Значение |
-|---|---|
-| Сервис Cloud Run | `seedintake-telegram-bot` |
-| Регион | `europe-west4` (Amsterdam, Netherlands) |
-| GCP Проект | `detoximan2026` |
-| URL сервиса | `https://seedintake-telegram-bot-v7om675z7q-ez.a.run.app` |
-| Telegram-бот | `@detoximan_intake_bot` |
-| GitHub репозиторий | `detoximan/seedintake` (ветка `main`) |
-| Деплой-скрипт | `./deploy.sh` в корне репозитория |
-| Связанный сервис (НЕ трогать!) | `micro-razbor-bot` (в том же проекте `detoximan2026`, `europe-west4`) |
-
-**Секреты (через Secret Manager в GCP):**
-- `telegram-bot-token` → `TELEGRAM_BOT_TOKEN`
-- `github-token` → `GITHUB_TOKEN`
-- `telegram-webhook-secret` → `TELEGRAM_WEBHOOK_SECRET`
-- `google-sheet-id` → `GOOGLE_SHEET_ID`
-- `google-service-account-json` → `/secrets/google/service-account.json`
-
-**Команды управления ботом:**
-```bash
-cd services/telegram_intake_bot
-
-# Диагностика
-PYTHONPATH=src python3 -m telegram_intake_bot.cli diagnose
-
-# Локальный polling (при тестировании)
-PYTHONPATH=src python3 -m telegram_intake_bot.cli polling
-
-# Webhook режим (для Cloud Run)
-PYTHONPATH=src:../seed_pipeline/src python3 -m telegram_intake_bot.cli webhook
-```
-
----
-
 ## КРИТИЧЕСКИЕ ПРАВИЛА ОБРАБОТКИ (читать первым делом)
 
 ### 1. Строго последовательная обработка — по одной ссылке

@@ -81,4 +81,4 @@ PYTHONPATH=src python3 -m seed_pipeline.cli link-worker process-fallback --live-
 - **`services/seed_pipeline`**:
   Основной рабочий сервис: скачивание медиа, Whisper STT, Tesseract OCR, интеграция с Google Sheets и запись Markdown.
 - **`services/telegram_intake_bot`**:
-  Сервис на базе Google Cloud Run (Europe Amsterdam), принимающий ссылки и заметки из Telegram-бота и создающий записи в `Inbox/2026/links/`.
+  Сервис на базе Google Cloud Run (Europe Amsterdam), принимающий ссылки и заметки из Telegram-бота и создающий записи в `Inbox/2026/links/`. Инструкции и параметры Cloud Run: [services/telegram_intake_bot/DEPLOY.md](file:///Users/pavelmalyk/pm_developer/SeedIntake/services/telegram_intake_bot/DEPLOY.md).
