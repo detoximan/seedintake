@@ -44,11 +44,11 @@ class InstagramProcessor:
 
     @staticmethod
     def _is_weak_transcript(transcript: str) -> bool:
-        """Возвращает True если транскрибация пустая или ≤3 слов (галлюцинация Whisper)."""
+        """Возвращает True если транскрибация пустая или ≤5 слов (галлюцинация Whisper / короткий джингл)."""
         if not transcript or transcript.lower() in ('', 'нет'):
             return True
         words = transcript.split()
-        return len(words) <= 3
+        return len(words) <= 5
 
     def _process_video_file(self, vid: Path, tmp_path: Path) -> tuple[str, str]:
         """
