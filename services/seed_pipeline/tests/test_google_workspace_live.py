@@ -6,6 +6,9 @@ from seed_pipeline.integrations.google_workspace_live import (
     LiveGoogleWorkspace,
     LiveGoogleWorkspaceConfig,
     LiveGoogleWorkspaceConfigError,
+    PROTECTED_SERVICE_COLUMNS,
+    col_index_to_letter,
+    col_letter_to_index,
 )
 from seed_pipeline.schemas import SeedInput
 
@@ -22,9 +25,10 @@ class _Executable:
 
 
 class _FakeValues:
-    def __init__(self) -> None:
+    def __init__(self, values_by_range: dict[str, list[list[str]]] | None = None) -> None:
         self.update_calls = []
         self.get_calls = []
+        self.values_by_range = values_by_range or {}
 
     def update(self, **kwargs):
         self.update_calls.append(kwargs)
@@ -32,15 +36,26 @@ class _FakeValues:
 
     def get(self, **kwargs):
         self.get_calls.append(kwargs)
+        range_arg = kwargs.get("range", "")
+        if range_arg in self.values_by_range:
+            return _Executable({"values": self.values_by_range[range_arg]})
+        for k, v in self.values_by_range.items():
+            if k in range_arg or range_arg in k:
+                return _Executable({"values": v})
         return _Executable({"values": []})
 
 
 class _FakeSpreadsheets:
-    def __init__(self, *, append_error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        append_error: Exception | None = None,
+        values_by_range: dict[str, list[list[str]]] | None = None,
+    ) -> None:
         self.append_error = append_error
         self.batch_update_calls = []
         self.get_calls = []
-        self.values_resource = _FakeValues()
+        self.values_resource = _FakeValues(values_by_range=values_by_range)
 
     def get(self, **kwargs):
         self.get_calls.append(kwargs)
@@ -55,8 +70,16 @@ class _FakeSpreadsheets:
 
 
 class _FakeSheetsService:
-    def __init__(self, *, append_error: Exception | None = None) -> None:
-        self.spreadsheets_resource = _FakeSpreadsheets(append_error=append_error)
+    def __init__(
+        self,
+        *,
+        append_error: Exception | None = None,
+        values_by_range: dict[str, list[list[str]]] | None = None,
+    ) -> None:
+        self.spreadsheets_resource = _FakeSpreadsheets(
+            append_error=append_error,
+            values_by_range=values_by_range,
+        )
 
     def spreadsheets(self):
         return self.spreadsheets_resource
@@ -168,6 +191,102 @@ class LiveGoogleWorkspaceTests(unittest.TestCase):
             config = LiveGoogleWorkspaceConfig.from_env()
 
         self.assertEqual(config.sheet_gid, 42)
+
+    def test_col_index_and_letter_conversions(self) -> None:
+        self.assertEqual(col_index_to_letter(0), "A")
+        self.assertEqual(col_index_to_letter(4), "E")
+        self.assertEqual(col_index_to_letter(5), "F")
+        self.assertEqual(col_index_to_letter(7), "H")
+        self.assertEqual(col_index_to_letter(25), "Z")
+        self.assertEqual(col_index_to_letter(26), "AA")
+        self.assertEqual(col_letter_to_index("A"), 0)
+        self.assertEqual(col_letter_to_index("E"), 4)
+        self.assertEqual(col_letter_to_index("F"), 5)
+        self.assertEqual(col_letter_to_index("H"), 7)
+        self.assertEqual(col_letter_to_index("Z"), 25)
+        self.assertEqual(col_letter_to_index("AA"), 26)
+
+    def test_dynamic_header_lookup_and_protection(self) -> None:
+        headers = [
+            "ID",
+            "Просмотры",
+            "Лайки",
+            "Комментарий Павла",
+            "Транскрибация источника",
+            "Взять в работу",
+            "Бралось в работу",
+            "Взятий",
+            "Сила ролика через логарифм",
+        ]
+        sheets = _FakeSheetsService(values_by_range={"'Лист1'!A1:ZZ1": [headers]})
+        workspace = LiveGoogleWorkspace(config=self._config(), sheets_service=sheets)
+
+        self.assertEqual(workspace.get_column_index("ID"), 0)
+        self.assertEqual(workspace.get_column_letter("ID"), "A")
+        self.assertEqual(workspace.get_column_index("Транскрибация источника"), 4)
+        self.assertEqual(workspace.get_column_letter("Транскрибация источника"), "E")
+        self.assertEqual(workspace.get_column_index("Взять в работу"), 5)
+        self.assertEqual(workspace.get_column_letter("Взять в работу"), "F")
+        self.assertEqual(workspace.get_column_index("Бралось в работу"), 6)
+        self.assertEqual(workspace.get_column_letter("Бралось в работу"), "G")
+        self.assertEqual(workspace.get_column_index("Взятий"), 7)
+        self.assertEqual(workspace.get_column_letter("Взятий"), "H")
+        self.assertEqual(workspace.get_column_index("Сила ролика через логарифм"), 8)
+        self.assertEqual(workspace.get_column_letter("Сила ролика через логарифм"), "I")
+
+        # Service columns are protected
+        self.assertTrue(workspace.is_protected_column("Взять в работу"))
+        self.assertTrue(workspace.is_protected_column("Бралось в работу"))
+        self.assertTrue(workspace.is_protected_column("Взятий"))
+        self.assertFalse(workspace.is_protected_column("Транскрибация источника"))
+        self.assertFalse(workspace.is_protected_column("ID"))
+
+        # Writing to protected column via update_cell_by_header must raise ValueError
+        with self.assertRaises(ValueError) as ctx:
+            workspace.update_cell_by_header(2, "Взять в работу", "TRUE")
+        self.assertIn("Запрещено перезаписывать защищённую", str(ctx.exception))
+
+        # Direct range write targeting protected column F must raise ValueError
+        with self.assertRaises(ValueError) as ctx:
+            workspace.update_range("Лист1!F2", [["TRUE"]])
+        self.assertIn("Попытка записи в защищённую колонку", str(ctx.exception))
+
+        # Allowed update to "Транскрибация источника" succeeds and targets column E
+        workspace.update_cell_by_header(5, "Транскрибация источника", "Новый перевод")
+        update_calls = sheets.spreadsheets_resource.values_resource.update_calls
+        self.assertEqual(len(update_calls), 1)
+        self.assertEqual(update_calls[0]["range"], "'Лист1'!E5")
+        self.assertEqual(update_calls[0]["body"]["values"], [["Новый перевод"]])
+
+    def test_append_row_never_touches_service_columns(self) -> None:
+        headers = [
+            "ID",
+            "Просмотры",
+            "Лайки",
+            "Комментарий Павла",
+            "Транскрибация источника",
+            "Взять в работу",
+            "Бралось в работу",
+            "Взятий",
+            "Сила ролика через логарифм",
+        ]
+        sheets = _FakeSheetsService(values_by_range={"'Лист1'!A1:ZZ1": [headers]})
+        workspace = LiveGoogleWorkspace(config=self._config(), sheets_service=sheets)
+
+        result = workspace.create_seed_artifacts(
+            seed_id="2026-09-29-001",
+            seed_input=self._seed_input(),
+            full_markdown_url="https://example.com/2026-09-29-001-f.md",
+        )
+
+        self.assertEqual(result.status, "ok")
+        append_calls = sheets.spreadsheets_resource.batch_update_calls
+        self.assertEqual(len(append_calls), 1)
+        values = append_calls[0]["body"]["requests"][0]["appendCells"]["rows"][0]["values"]
+        # Exactly 5 cells appended, indices 5, 6, 7 (F, G, H) are completely untouched!
+        self.assertEqual(len(values), 5)
+        self.assertEqual(values[0]["userEnteredValue"]["stringValue"], "2026-09-29-001")
+        self.assertEqual(values[4]["userEnteredValue"]["stringValue"], self._seed_input().material)
 
 
 if __name__ == "__main__":

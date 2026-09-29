@@ -48,6 +48,44 @@ class LiveGoogleWorkspaceConfig:
         return cls(credentials_path=credentials_path, sheet_id=sheet_id, sheet_gid=sheet_gid)
 
 
+PROTECTED_SERVICE_COLUMNS = {
+    "взять в работу",
+    "бралось в работу",
+    "взятий",
+}
+
+DEFAULT_REGISTRY_HEADERS = [
+    "ID",
+    "Просмотры",
+    "Лайки",
+    "Комментарий Павла",
+    "Транскрибация источника",
+]
+
+
+def col_index_to_letter(idx: int) -> str:
+    """Convert 0-based column index to A1 column letter (0 -> 'A', 25 -> 'Z', 26 -> 'AA')."""
+    if idx < 0:
+        raise ValueError(f"Invalid column index: {idx}")
+    result = []
+    idx += 1
+    while idx > 0:
+        idx, remainder = divmod(idx - 1, 26)
+        result.append(chr(65 + remainder))
+    return "".join(reversed(result))
+
+
+def col_letter_to_index(col: str) -> int:
+    """Convert A1 column letter to 0-based index ('A' -> 0, 'Z' -> 25, 'AA' -> 26)."""
+    col = col.strip().upper()
+    if not col.isalpha():
+        raise ValueError(f"Invalid column letter: {col}")
+    result = 0
+    for char in col:
+        result = result * 26 + (ord(char) - ord("A") + 1)
+    return result - 1
+
+
 class LiveGoogleWorkspace:
     def __init__(
         self,
@@ -57,10 +95,86 @@ class LiveGoogleWorkspace:
     ) -> None:
         self.config = config
         self.sheets_service = sheets_service or _build_sheets_service(config)
+        self._header_cache: dict[str, list[str]] = {}
 
     @classmethod
     def from_env(cls) -> "LiveGoogleWorkspace":
         return cls(config=LiveGoogleWorkspaceConfig.from_env())
+
+    def is_protected_column(self, header_name: str) -> bool:
+        """Check if header belongs to protected service columns managed by external Apps Script."""
+        return header_name.strip().lower() in PROTECTED_SERVICE_COLUMNS
+
+    def get_sheet_properties(self, sheet_name: str | None = None) -> dict[str, Any]:
+        spreadsheet = self.sheets_service.spreadsheets().get(spreadsheetId=self.config.sheet_id).execute()
+        sheets = spreadsheet.get("sheets", [])
+        if not sheets:
+            raise LiveGoogleWorkspaceConfigError("Google Sheet contains no sheets.")
+        if sheet_name is None:
+            return sheets[0].get("properties", {})
+        target = sheet_name.strip().lower()
+        for s in sheets:
+            props = s.get("properties", {})
+            if props.get("title", "").strip().lower() == target:
+                return props
+        raise LiveGoogleWorkspaceConfigError(f"Sheet '{sheet_name}' not found in spreadsheet.")
+
+    def get_sheet_title(self, sheet_id: int | None = None) -> str:
+        if sheet_id is None and self.config.sheet_gid is not None:
+            sheet_id = self.config.sheet_gid
+        spreadsheet = self.sheets_service.spreadsheets().get(spreadsheetId=self.config.sheet_id).execute()
+        sheets = spreadsheet.get("sheets", [])
+        if not sheets:
+            raise LiveGoogleWorkspaceConfigError("Google Sheet contains no sheets.")
+        if sheet_id is None:
+            return sheets[0].get("properties", {}).get("title", "Лист1")
+        for s in sheets:
+            props = s.get("properties", {})
+            if props.get("sheetId") == sheet_id:
+                return props.get("title", "Лист1")
+        return sheets[0].get("properties", {}).get("title", "Лист1")
+
+    def get_sheet_id_by_title(self, sheet_title: str) -> int:
+        props = self.get_sheet_properties(sheet_name=sheet_title)
+        return props.get("sheetId", 0)
+
+    def get_header_row(self, sheet_name: str | None = None) -> list[str]:
+        sheet_title = sheet_name or self.get_sheet_title()
+        if sheet_title in self._header_cache:
+            return self._header_cache[sheet_title]
+        result = self.sheets_service.spreadsheets().values().get(
+            spreadsheetId=self.config.sheet_id,
+            range=f"'{sheet_title}'!A1:ZZ1"
+        ).execute()
+        vals = result.get("values", [])
+        if not vals or not vals[0]:
+            headers = []
+        else:
+            headers = [str(c).strip() for c in vals[0]]
+        self._header_cache[sheet_title] = headers
+        return headers
+
+    def get_header_indices(self, sheet_name: str | None = None) -> dict[str, int]:
+        headers = self.get_header_row(sheet_name)
+        if not headers:
+            return {h: i for i, h in enumerate(DEFAULT_REGISTRY_HEADERS)}
+        return {h: i for i, h in enumerate(headers) if h}
+
+    def get_column_index(self, header_name: str, sheet_name: str | None = None) -> int:
+        indices = self.get_header_indices(sheet_name)
+        if header_name in indices:
+            return indices[header_name]
+        lower_name = header_name.strip().lower()
+        for name, idx in indices.items():
+            if name.lower() == lower_name:
+                return idx
+        raise KeyError(
+            f"Header '{header_name}' not found in sheet '{sheet_name or self.get_sheet_title()}'. "
+            f"Available headers: {list(indices.keys())}"
+        )
+
+    def get_column_letter(self, header_name: str, sheet_name: str | None = None) -> str:
+        return col_index_to_letter(self.get_column_index(header_name, sheet_name))
 
     def create_seed_artifacts(
         self,
@@ -162,6 +276,30 @@ class LiveGoogleWorkspace:
             pavel_comment=_normalize_or_default(seed_input.comment, "Без комментария."),
             normalized_text=seed_input.material.strip(),
         )
+
+        header_indices = self.get_header_indices()
+
+        field_cells = {
+            "ID": _linked_string_cell(row.id_link_text, row.id_link_url),
+            "Просмотры": _string_cell(row.views),
+            "Лайки": _string_cell(row.likes),
+            "Комментарий Павла": _string_cell(row.pavel_comment),
+            "Транскрибация источника": _string_cell(row.normalized_text),
+        }
+
+        cell_by_col_idx: dict[int, dict[str, Any]] = {}
+        for header, cell in field_cells.items():
+            if self.is_protected_column(header):
+                raise ValueError(f"Поле '{header}' совпадает с защищённой колонкой!")
+            try:
+                col_idx = self.get_column_index(header)
+            except KeyError:
+                col_idx = DEFAULT_REGISTRY_HEADERS.index(header)
+            cell_by_col_idx[col_idx] = cell
+
+        max_idx = max(cell_by_col_idx.keys()) if cell_by_col_idx else 4
+        row_values = [cell_by_col_idx.get(i, {}) for i in range(max_idx + 1)]
+
         self.sheets_service.spreadsheets().batchUpdate(
             spreadsheetId=self.config.sheet_id,
             body={
@@ -171,13 +309,7 @@ class LiveGoogleWorkspace:
                             "sheetId": self._target_sheet_gid(),
                             "rows": [
                                 {
-                                    "values": [
-                                        _linked_string_cell(row.id_link_text, row.id_link_url),
-                                        _string_cell(row.views),
-                                        _string_cell(row.likes),
-                                        _string_cell(row.pavel_comment),
-                                        _string_cell(row.normalized_text),
-                                    ]
+                                    "values": row_values
                                 }
                             ],
                             "fields": "userEnteredValue,userEnteredFormat.textFormat.link",
@@ -188,41 +320,77 @@ class LiveGoogleWorkspace:
         ).execute()
         return row
 
-    def ensure_headers(self) -> None:
-        """Ensure the first row has the correct headers: ID, Просмотры, Лайки, Комментарий, Транскрибация источника."""
-        headers = ["ID", "Просмотры", "Лайки", "Комментарий Павла", "Транскрибация источника"]
-        self.sheets_service.spreadsheets().values().update(
-            spreadsheetId=self.config.sheet_id,
-            range=f"A1:E1",
-            valueInputOption="RAW",
-            body={"values": [headers]},
-        ).execute()
+    def ensure_headers(self, sheet_name: str | None = None) -> None:
+        """Ensure the first row has headers. Only initializes if row 1 is completely empty."""
+        sheet_title = sheet_name or self.get_sheet_title()
+        current_headers = self.get_header_row(sheet_title)
+        if not current_headers:
+            end_col = col_index_to_letter(len(DEFAULT_REGISTRY_HEADERS) - 1)
+            self.sheets_service.spreadsheets().values().update(
+                spreadsheetId=self.config.sheet_id,
+                range=f"'{sheet_title}'!A1:{end_col}1",
+                valueInputOption="RAW",
+                body={"values": [DEFAULT_REGISTRY_HEADERS]},
+            ).execute()
 
     def _target_sheet_gid(self) -> int:
         if self.config.sheet_gid is not None:
             return self.config.sheet_gid
-        spreadsheet = self.sheets_service.spreadsheets().get(spreadsheetId=self.config.sheet_id).execute()
-        sheets = spreadsheet.get("sheets", [])
-        if not sheets:
-            raise LiveGoogleWorkspaceConfigError("Google Sheet contains no sheets.")
-        return spreadsheet.get("sheets", [])[0]["properties"]["sheetId"]
+        return self.get_sheet_properties().get("sheetId", 0)
 
-    def get_all_rows(self) -> list[list[str]]:
+    def get_all_rows(self, sheet_name: str | None = None) -> list[list[str]]:
         """Get all rows from the sheet for matching seed_ids."""
+        sheet_title = sheet_name or self.get_sheet_title()
         result = self.sheets_service.spreadsheets().values().get(
             spreadsheetId=self.config.sheet_id,
-            range="A:E"
+            range=f"'{sheet_title}'"
         ).execute()
         return result.get("values", [])
 
+    def update_cell_by_header(
+        self,
+        row_idx: int,
+        header_name: str,
+        value: str,
+        sheet_name: str | None = None,
+    ) -> None:
+        """Update a specific cell identified by 1-based row index and header name."""
+        if self.is_protected_column(header_name):
+            raise ValueError(f"Запрещено перезаписывать защищённую служебную колонку '{header_name}'!")
+        sheet_title = sheet_name or self.get_sheet_title()
+        col_letter = self.get_column_letter(header_name, sheet_name=sheet_title)
+        self.update_range(f"'{sheet_title}'!{col_letter}{row_idx}", [[value]])
+
     def update_range(self, range_name: str, values: list[list[str]]) -> None:
         """Update a specific range with provided values."""
+        self._validate_range_not_protected(range_name)
         self.sheets_service.spreadsheets().values().update(
             spreadsheetId=self.config.sheet_id,
             range=range_name,
             valueInputOption="RAW",
             body={"values": values}
         ).execute()
+
+    def _validate_range_not_protected(self, range_name: str) -> None:
+        """Check if range_name explicitly targets any protected service column."""
+        import re
+        clean_range = range_name.split("!")[-1]
+        col_match = re.match(r"^([A-Za-z]+)", clean_range)
+        if col_match:
+            col_letter = col_match.group(1).upper()
+            try:
+                col_idx = col_letter_to_index(col_letter)
+                sheet_prefix = range_name.split("!")[0].strip("'") if "!" in range_name else None
+                headers = self.get_header_row(sheet_prefix)
+                if col_idx < len(headers):
+                    header_name = headers[col_idx]
+                    if self.is_protected_column(header_name):
+                        raise ValueError(
+                            f"Попытка записи в защищённую колонку '{header_name}' (колонка {col_letter}) запрещена!"
+                        )
+            except Exception as e:
+                if isinstance(e, ValueError) and "Попытка записи" in str(e):
+                    raise
 
 
 def config_error_record(*, message: str, timestamp: str) -> ErrorRecord:

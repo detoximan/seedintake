@@ -157,18 +157,22 @@ def sync_translation(
     # 3. Обновляем Google Sheet
     ws = LiveGoogleWorkspace.from_env()
     target_row_indices = []
+    id_col_idx = ws.get_column_index("ID")
+    content_header = "Транскрибация источника"
+    content_col_letter = ws.get_column_letter(content_header)
+
     if row_override:
         target_row_indices = [row_override]
     else:
         rows = ws.get_all_rows()
         for idx, row in enumerate(rows):
-            if row and seed_id in row[0]:
+            if len(row) > id_col_idx and seed_id in row[id_col_idx]:
                 target_row_indices.append(idx + 1)
 
     if target_row_indices:
         for target_row_idx in target_row_indices:
-            ws.update_range(f"E{target_row_idx}", [[bilingual_text.strip()]])
-            print(f"  - Обновлена строка Google Sheet E{target_row_idx} для {seed_id}")
+            ws.update_cell_by_header(target_row_idx, content_header, bilingual_text.strip())
+            print(f"  - Обновлена строка Google Sheet {content_col_letter}{target_row_idx} ({content_header}) для {seed_id}")
     else:
         print(f"  - ВНИМАНИЕ: строка {seed_id} не найдена в Google Sheet!")
 

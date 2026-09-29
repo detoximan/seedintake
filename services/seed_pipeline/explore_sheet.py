@@ -59,13 +59,16 @@ def strip_service_words(text: str) -> str:
     return "\n".join(lines)
 
 
+id_col_idx = ws.get_column_index("ID")
+content_col_idx = ws.get_column_index("Транскрибация источника")
+
 data = []
 for i, row in enumerate(rows):
     if i == 0:
         continue  # заголовки
     row_num = i + 1
-    col_a = row[0] if len(row) > 0 else ""
-    col_e = row[4] if len(row) > 4 else ""
+    col_a = row[id_col_idx] if len(row) > id_col_idx else ""
+    col_e = row[content_col_idx] if len(row) > content_col_idx else ""
 
     main_text = extract_main_text(col_e).strip()
     has_translation = "====================" in (col_e or "")

@@ -5,18 +5,23 @@ from dotenv import load_dotenv
 # Load env from current directory or relative path
 load_dotenv(Path(__file__).parent / ".env")
 
-from seed_pipeline.integrations.google_workspace_live import LiveGoogleWorkspace
+from seed_pipeline.integrations.google_workspace_live import LiveGoogleWorkspace, col_index_to_letter
 
 GITHUB_BASE_URL = "https://github.com/detoximan/seedintake/blob/main/Inbox/2026/full"
 
 def restore_column_a_links():
     ws = LiveGoogleWorkspace.from_env()
     spreadsheet_id = ws.config.sheet_id
-    
+    sheet_title = "Лист1"
+    target_sheet_id = ws.get_sheet_id_by_title(sheet_title)
+
+    id_col_idx = ws.get_column_index("ID", sheet_name=sheet_title)
+    id_col_letter = col_index_to_letter(id_col_idx)
+
     # 1. Fetch current rows
     res = ws.sheets_service.spreadsheets().get(
         spreadsheetId=spreadsheet_id,
-        ranges=["Лист1!A:A"],
+        ranges=[f"'{sheet_title}'!{id_col_letter}:{id_col_letter}"],
         fields="sheets(data(rowData(values(userEnteredValue,userEnteredFormat,formattedValue,hyperlink))))"
     ).execute()
     
@@ -87,11 +92,11 @@ def restore_column_a_links():
                 {
                     "updateCells": {
                         "range": {
-                            "sheetId": 0,
+                            "sheetId": target_sheet_id,
                             "startRowIndex": start_row_idx,
                             "endRowIndex": end_row_idx,
-                            "startColumnIndex": 0,
-                            "endColumnIndex": 1,
+                            "startColumnIndex": id_col_idx,
+                            "endColumnIndex": id_col_idx + 1,
                         },
                         "rows": chunk_rows,
                         "fields": "userEnteredValue,userEnteredFormat.textFormat.link,userEnteredFormat.wrapStrategy,userEnteredFormat.textFormat.fontSize"
@@ -112,10 +117,14 @@ def restore_column_a_links():
 def verify_links():
     ws = LiveGoogleWorkspace.from_env()
     spreadsheet_id = ws.config.sheet_id
-    
+    sheet_title = "Лист1"
+
+    id_col_idx = ws.get_column_index("ID", sheet_name=sheet_title)
+    id_col_letter = col_index_to_letter(id_col_idx)
+
     res = ws.sheets_service.spreadsheets().get(
         spreadsheetId=spreadsheet_id,
-        ranges=["Лист1!A:A"],
+        ranges=[f"'{sheet_title}'!{id_col_letter}:{id_col_letter}"],
         fields="sheets(data(rowData(values(userEnteredValue,userEnteredFormat,formattedValue,hyperlink))))"
     ).execute()
     

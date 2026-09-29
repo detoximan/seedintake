@@ -36,18 +36,20 @@ if sheet_id is None:
     ).execute()
     sheet_id = res["replies"][0]["addSheet"]["properties"]["sheetId"]
 else:
-    print(f"Лист '{SHEET_TITLE}' уже существует (id={sheet_id}). Очищаю...")
+    print(f"Лист '{SHEET_TITLE}' уже существует (id={sheet_id}). Очищаю данные колонок Silach (A2:F)...")
+    # CRITICAL: Очищаем ТОЛЬКО строки данных колонок Silach (A2:F).
+    # Ни в коем случае НЕ A:Z, чтобы сохранить служебные колонки 'Взять в работу', 'Бралось в работу', 'Взятий' (G, H, I)!
     service.spreadsheets().values().clear(
         spreadsheetId=config.sheet_id,
-        range=f"'{SHEET_TITLE}'!A:Z"
+        range=f"'{SHEET_TITLE}'!A2:F"
     ).execute()
 
 # Формируем строки данных
 headers = ["ID", "Зона", "Стратегия", "Аудитория", "Суть ролика", "Разбор СИЛАЧ / Стоицизм"]
-rows = [headers]
+data_rows = []
 
 for item in items:
-    rows.append([
+    data_rows.append([
         item["id"],
         item["zone"],
         item["strategic_type"],
@@ -56,13 +58,24 @@ for item in items:
         item["silach_reframe"]
     ])
 
-# Записываем значения
-print("Записываю значения...")
+rows = [headers] + data_rows
+
+# Записываем заголовки колонок Silach (A1:F1), не затрагивая G1:I1
+print("Записываю заголовки колонок Silach в A1:F1...")
 service.spreadsheets().values().update(
     spreadsheetId=config.sheet_id,
-    range=f"'{SHEET_TITLE}'!A1",
+    range=f"'{SHEET_TITLE}'!A1:F1",
     valueInputOption="USER_ENTERED",
-    body={"values": rows}
+    body={"values": [headers]}
+).execute()
+
+# Записываем данные в A2:F
+print("Записываю значения данных в A2:F (служебные колонки G:I не затрагиваются)...")
+service.spreadsheets().values().update(
+    spreadsheetId=config.sheet_id,
+    range=f"'{SHEET_TITLE}'!A2:F",
+    valueInputOption="USER_ENTERED",
+    body={"values": data_rows}
 ).execute()
 
 # Форматирование и гиперссылки

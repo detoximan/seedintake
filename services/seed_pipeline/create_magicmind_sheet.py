@@ -55,7 +55,11 @@ if not main_sheet:
     sys.exit(1)
 
 main_sheet_id = main_sheet["properties"]["sheetId"]
-print(f"ID основного листа: {main_sheet_id}")
+main_sheet_title = main_sheet["properties"].get("title", "Лист1")
+print(f"ID основного листа: {main_sheet_id}, название: {main_sheet_title}")
+
+id_col_idx = ws.get_column_index("ID", sheet_name=main_sheet_title)
+trans_col_idx = ws.get_column_index("Транскрибация источника", sheet_name=main_sheet_title)
 
 # Build map: seed_id -> github_url
 row_data = main_sheet.get("data", [{}])[0].get("rowData", [])
@@ -64,11 +68,11 @@ for i, row in enumerate(row_data):
     if i == 0:
         continue  # skip header
     cells = row.get("values", [])
-    if not cells:
+    if len(cells) <= id_col_idx:
         continue
-    cell_a = cells[0]
-    cell_value = cell_a.get("userEnteredValue", {}).get("stringValue", "")
-    hyperlink = cell_a.get("hyperlink", "")
+    cell_id = cells[id_col_idx]
+    cell_value = cell_id.get("userEnteredValue", {}).get("stringValue", "")
+    hyperlink = cell_id.get("hyperlink", "")
     if cell_value and hyperlink:
         id_to_github[cell_value.strip()] = hyperlink
 
@@ -76,17 +80,17 @@ print(f"Найдено ID с гиперссылками в основном ли
 
 # --- Step 3: Read main sheet cell values (for Russian text) ---
 print("Читаю содержимое ячеек основного листа...")
-rows_values = ws.get_all_rows()
-id_to_cell_e = {}
+rows_values = ws.get_all_rows(sheet_name=main_sheet_title)
+id_to_cell_trans = {}
 for i, row in enumerate(rows_values):
     if i == 0:
         continue
-    cell_a = row[0].strip() if len(row) > 0 else ""
-    cell_e = row[4] if len(row) > 4 else ""
-    if cell_a:
-        id_to_cell_e[cell_a] = cell_e
+    cell_id = row[id_col_idx].strip() if len(row) > id_col_idx else ""
+    cell_trans = row[trans_col_idx] if len(row) > trans_col_idx else ""
+    if cell_id:
+        id_to_cell_trans[cell_id] = cell_trans
 
-print(f"Найдено строк с контентом: {len(id_to_cell_e)}")
+print(f"Найдено строк с контентом: {len(id_to_cell_trans)}")
 
 # --- Step 4: Create new sheet ---
 print(f"Создаю лист '{NEW_SHEET_NAME}'...")
@@ -120,13 +124,18 @@ except Exception as e:
         raise
 
 # --- Step 5: Write headers ---
-print("Записываю заголовки...")
-service.spreadsheets().values().update(
-    spreadsheetId=config.sheet_id,
-    range=f"'{NEW_SHEET_NAME}'!A1:C1",
-    valueInputOption="RAW",
-    body={"values": [["ID", "Выдержка", "Полный русский текст"]]}
-).execute()
+print("Проверяю заголовки...")
+mm_headers = ws.get_header_row(sheet_name=NEW_SHEET_NAME)
+if not mm_headers:
+    print("Записываю заголовки...")
+    service.spreadsheets().values().update(
+        spreadsheetId=config.sheet_id,
+        range=f"'{NEW_SHEET_NAME}'!A1:C1",
+        valueInputOption="RAW",
+        body={"values": [["ID", "Выдержка", "Полный русский текст"]]}
+    ).execute()
+else:
+    print(f"Заголовки листа '{NEW_SHEET_NAME}' уже существуют: {mm_headers}. Служебные колонки не перезаписываются.")
 
 # --- Step 6: Build rows ---
 print("Формирую строки для записи...")
@@ -137,15 +146,14 @@ for entry_id, annotation in entries:
     # Get GitHub link
     github_url = id_to_github.get(entry_id, "")
     
-    # Get Russian text from cell E
-    cell_e = id_to_cell_e.get(entry_id, "")
+    # Get Russian text from source
+    cell_trans = id_to_cell_trans.get(entry_id, "")
     russian_text = ""
-    if cell_e and TRANS_MARKER in cell_e:
-        parts = cell_e.split(TRANS_MARKER, 1)
+    if cell_trans and TRANS_MARKER in cell_trans:
+        parts = cell_trans.split(TRANS_MARKER, 1)
         russian_text = parts[1].strip() if len(parts) > 1 else ""
-    elif cell_e:
-        # Maybe already Russian only
-        russian_text = cell_e.strip()
+    elif cell_trans:
+        russian_text = cell_trans.strip()
     
     rows_to_write.append([entry_id, annotation, russian_text])
     links_to_write.append((entry_id, github_url))
@@ -153,10 +161,10 @@ for entry_id, annotation in entries:
 print(f"Подготовлено строк: {len(rows_to_write)}")
 
 # --- Step 7: Write data (values first) ---
-print("Записываю данные...")
+print("Записываю данные в колонки A:C (служебные колонки не затрагиваются)...")
 service.spreadsheets().values().update(
     spreadsheetId=config.sheet_id,
-    range=f"'{NEW_SHEET_NAME}'!A2",
+    range=f"'{NEW_SHEET_NAME}'!A2:C",
     valueInputOption="RAW",
     body={"values": rows_to_write}
 ).execute()

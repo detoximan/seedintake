@@ -51,12 +51,15 @@ def audit() -> dict[str, list[dict]]:
     group_b = []  # Обрезанный / неполный перевод
     group_c = []  # Рассинхрон
 
+    id_col_idx = ws.get_column_index("ID")
+    content_col_idx = ws.get_column_index("Транскрибация источника")
+
     for i, row in enumerate(rows):
         if i == 0:
             continue  # Пропускаем заголовки таблицы
         row_num = i + 1
-        col_a = row[0] if len(row) > 0 else ""
-        col_e = row[4] if len(row) > 4 else ""
+        col_a = row[id_col_idx] if len(row) > id_col_idx else ""
+        col_e = row[content_col_idx] if len(row) > content_col_idx else ""
 
         seed_match = SEED_ID_RE.search(col_a)
         seed_id = seed_match.group(1) if seed_match else col_a.strip()
