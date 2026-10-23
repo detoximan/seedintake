@@ -4,6 +4,22 @@
 > Каждая запись начинается с префикса: `## [YYYY-MM-DD] <категория> | <Заголовок>`  
 > Просмотр последних записей: `grep "^## \[" log.md | tail -10`
 
+## [2026-10-23] processing | Обработка non-TikTok ссылок очереди (Threads, Facebook Reel, Instagram Carousels & Reels)
+
+- **Контекст:** Пользователь запросил обработать все ссылки, кроме TikTok: Threads, Facebook Reel, Instagram Reels и карусели.
+- **Что сделано:**
+  1. Удалён дубликат `2026-09-16-003` (оставлен `2026-09-16-002`).
+  2. Обновлён `router.py`: добавлена поддержка домена `threads.com` в `LinkPlatformType.THREADS_POST`.
+  3. `2026-09-18-001` (Threads): текст извлечён через Jina Reader, сохранён в full/slim и Google Sheets.
+  4. `2026-09-21-001` (Facebook Reel): скачано видео с cookies, извлечён наложенный текст через покадровый OCR, обновлены full, slim и строка 746 в Google Sheets.
+  5. `2026-09-23-001` (Instagram Carousel): скачаны все 18 слайдов с cookies, выполнен OCR текста на фото, сохранён в full/slim и Google Sheets.
+  6. `2026-09-29-001` (Instagram Carousel): скачаны все 11 слайдов с cookies, выполнен OCR текста на фото, сохранён в full/slim и Google Sheets.
+  7. `2026-10-07-001` (Instagram Reels): скачано видео с cookies, выполнена транскрибация речи и сохранение текста поста в full/slim и Google Sheets.
+  8. `2026-10-18-001` (Instagram Reels): скачано видео с cookies, выполнена транскрибация речи и сохранение текста поста в full/slim и Google Sheets.
+  9. Все тесты пройдены: 46 в `seed_pipeline`, 52 в `telegram_intake_bot` (всего 98 тестов).
+
+---
+
 ## [2026-09-29] refactor | Адаптация к новым служебным колонкам Google Sheets и динамический поиск колонок
 
 - **Контекст:** В Google Sheets добавлены 3 служебные колонки («Взять в работу», «Бралось в работу», «Взятий») для интеграции с проектом «Сценарио» (в «Лист1» между E и I, в «Magic Mind» и «Silach Analysis» в конец).

@@ -53,7 +53,7 @@ class LinkRouter:
             return LinkPlatformType.FACEBOOK_POST
 
         # 5. Threads
-        if "threads.net" in domain:
+        if "threads.net" in domain or "threads.com" in domain:
             return LinkPlatformType.THREADS_POST
 
         # 6. Fallback (любая статья или текстовая ссылка)
